@@ -24,6 +24,7 @@ db.exec(`
     name        TEXT NOT NULL,
     gender      TEXT CHECK(gender IN ('male','female','unknown')) DEFAULT 'unknown',
     birthday    TEXT,
+    birthday_type TEXT CHECK(birthday_type IN ('solar','lunar')) DEFAULT 'solar',
     generation  INTEGER,
     photo_url   TEXT,
     phone       TEXT,
@@ -61,10 +62,10 @@ const f1 = db.prepare('INSERT INTO family (name, description, webhook_key) VALUE
   .run('张氏家族', '河南洛阳张氏，始祖张明远，堂号「百忍堂」', '').lastInsertRowid;
 
 // Helper
-function insPerson(fid, name, gender, birthday, gen, phone, addr, notes, alive = 1) {
+function insPerson(fid, name, gender, birthday, gen, phone, addr, notes, alive = 1, birthdayType = 'solar') {
   return db.prepare(
-    'INSERT INTO person (family_id, name, gender, birthday, generation, phone, address, notes, is_alive) VALUES (?,?,?,?,?,?,?,?,?)'
-  ).run(fid, name, gender, birthday, gen, phone, addr, notes, alive).lastInsertRowid;
+    'INSERT INTO person (family_id, name, gender, birthday, birthday_type, generation, phone, address, notes, is_alive) VALUES (?,?,?,?,?,?,?,?,?,?)'
+  ).run(fid, name, gender, birthday, birthdayType, gen, phone, addr, notes, alive).lastInsertRowid;
 }
 
 function insRelation(pid, rid, type) {
@@ -94,14 +95,14 @@ function addSiblings(ids) {
 
 // 第1代: 祖父母
 const zhang_mingyuan = insPerson(f1, '张明远', 'male', '1935-03-15', 1, '13800001001', '河南省洛阳市老城区', '家族始迁祖，退休教师', 0);
-const zhang_xiulan  = insPerson(f1, '张秀兰', 'female', '1938-07-22', 1, null, '河南省洛阳市老城区', null, 0);
+const zhang_xiulan  = insPerson(f1, '张秀兰', 'female', '1938-06-15', 1, null, '河南省洛阳市老城区', '农历六月十五', 0, 'lunar');
 addCouple(zhang_mingyuan, zhang_xiulan);
 
 // 第2代: 三个子女 + 配偶
 const zhang_jianguo = insPerson(f1, '张建国', 'male', '1962-01-10', 2, '13800002001', '河南省洛阳市涧西区', '长子，工程师');
-const wang_shufang  = insPerson(f1, '王淑芳', 'female', '1964-05-18', 2, '13800002002', '河南省洛阳市涧西区', '建国之妻，会计');
+const wang_shufang  = insPerson(f1, '王淑芳', 'female', '1964-02-08', 2, '13800002002', '河南省洛阳市涧西区', '建国之妻，会计，农历二月初八', 1, 'lunar');
 const zhang_jianhua = insPerson(f1, '张建华', 'male', '1965-08-03', 2, '13800002003', '北京市朝阳区', '次子，IT创业者');
-const li_meiling    = insPerson(f1, '李美玲', 'female', '1968-11-25', 2, '13800002004', '北京市朝阳区', '建华之妻，医生');
+const li_meiling    = insPerson(f1, '李美玲', 'female', '1968-08-15', 2, '13800002004', '北京市朝阳区', '建华之妻，医生，农历八月十五中秋', 1, 'lunar');
 const zhang_jianni  = insPerson(f1, '张建妮', 'female', '1970-04-12', 2, '13800002005', '上海市浦东新区', '长女，大学教授');
 const chen_wei      = insPerson(f1, '陈伟', 'male', '1969-09-08', 2, '13800002006', '上海市浦东新区', '建妮之夫，律师');
 
@@ -118,7 +119,7 @@ addSiblings([zhang_jianguo, zhang_jianhua, zhang_jianni]);
 
 // 第3代: 5个孙辈
 const zhang_haoran  = insPerson(f1, '张浩然', 'male', '1990-06-15', 3, '13800003001', '河南省洛阳市涧西区', '建国长子，银行职员');
-const zhang_yuxin   = insPerson(f1, '张雨欣', 'female', '1993-02-28', 3, '13800003002', '河南省洛阳市涧西区', '建国之女，设计师');
+const zhang_yuxin   = insPerson(f1, '张雨欣', 'female', '1993-01-20', 3, '13800003002', '河南省洛阳市涧西区', '建国之女，设计师，农历正月二十', 1, 'lunar');
 const zhang_zihan   = insPerson(f1, '张子涵', 'male', '1995-12-01', 3, '13800003003', '北京市海淀区', '建华之子，研究生在读');
 const chen_jiayi    = insPerson(f1, '陈佳怡', 'female', '1996-08-20', 3, '13800003004', '上海市浦东新区', '建妮之女，留学生');
 const chen_jiayang  = insPerson(f1, '陈嘉阳', 'male', '1999-03-10', 3, '13800003005', '上海市浦东新区', '建妮之子，大四学生');

@@ -33,6 +33,7 @@ func migrate(db *sql.DB) {
 			name        TEXT NOT NULL,
 			gender      TEXT CHECK(gender IN ('male','female','unknown')) DEFAULT 'unknown',
 			birthday    TEXT,
+			birthday_type TEXT CHECK(birthday_type IN ('solar','lunar')) DEFAULT 'solar',
 			generation  INTEGER,
 			photo_url   TEXT,
 			phone       TEXT,
@@ -57,6 +58,7 @@ func migrate(db *sql.DB) {
 		`CREATE INDEX IF NOT EXISTS idx_relation_person ON relation(person_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_relation_related ON relation(related_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_person_birthday ON person(birthday)`,
+		`ALTER TABLE person ADD COLUMN birthday_type TEXT CHECK(birthday_type IN ('solar','lunar')) DEFAULT 'solar'`,
 	}
 
 	for _, s := range stmts {

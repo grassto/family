@@ -23,14 +23,15 @@
           <div>
             <router-link :to="`/persons/${p.id}`" class="name">{{ p.name }}</router-link>
             <div class="meta">
-              <span>{{ p.birthday }}</span>
-              <span v-if="getAge(p.birthday)"> · {{ getAge(p.birthday) }}岁</span>
+              <span v-if="p.age">{{ p.age }}岁</span>
+              <span v-if="p.birthday_type === 'lunar'" class="lunar-tag">🌙 农历{{ p.lunar_label }}</span>
+              <span v-if="p.birthday_type !== 'lunar'" class="solar-tag">☀️ 公历</span>
             </div>
           </div>
         </div>
         <div class="birthday-date">
-          <div class="date-badge" :class="{ today: isToday(p.birthday) }">
-            {{ formatDate(p.birthday) }}
+          <div class="date-badge" :class="{ today: p.is_today }">
+            {{ p.is_today ? '🎉 今天' : formatDate(p.next_birthday) }}
           </div>
         </div>
       </div>
@@ -46,26 +47,10 @@ const persons = ref([])
 const loading = ref(true)
 const days = ref(30)
 
-const getAge = (birthday) => {
-  if (!birthday) return null
-  const year = parseInt(birthday.substring(0, 4))
-  if (!year) return null
-  return new Date().getFullYear() - year
-}
-
-const formatDate = (birthday) => {
-  if (!birthday) return ''
-  const parts = birthday.split('-')
+const formatDate = (dateStr) => {
+  if (!dateStr) return ''
+  const parts = dateStr.split('-')
   return `${parseInt(parts[1])}月${parseInt(parts[2])}日`
-}
-
-const isToday = (birthday) => {
-  if (!birthday) return false
-  const today = new Date()
-  const m = today.getMonth() + 1
-  const d = today.getDate()
-  const parts = birthday.split('-')
-  return parseInt(parts[1]) === m && parseInt(parts[2]) === d
 }
 
 const load = async () => {
@@ -151,6 +136,19 @@ onMounted(load)
   font-size: 13px;
   color: #999;
   margin-top: 2px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.lunar-tag {
+  color: #722ed1;
+  font-size: 12px;
+}
+
+.solar-tag {
+  color: #faad14;
+  font-size: 12px;
 }
 
 .date-badge {

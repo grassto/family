@@ -82,14 +82,14 @@ func (s *BirthdayScheduler) checkAndNotify() {
 		content := fmt.Sprintf("🎂 **%s - 今日生日提醒**\n\n", family.Name)
 		for _, p := range persons {
 			age := ""
-			if len(p.Birthday) >= 4 {
-				birthYear := 0
-				fmt.Sscanf(p.Birthday[:4], "%d", &birthYear)
-				if birthYear > 0 {
-					age = fmt.Sprintf("（%d岁）", now.Year()-birthYear)
-				}
+			if p.Age > 0 {
+				age = fmt.Sprintf("（%d岁）", p.Age)
 			}
-			content += fmt.Sprintf("> %s %s\n", p.Name, age)
+			typeLabel := ""
+			if p.BirthdayType == "lunar" {
+				typeLabel = fmt.Sprintf(" 🌙农历%s", p.LunarLabel)
+			}
+			content += fmt.Sprintf("> %s %s%s\n", p.Name, age, typeLabel)
 		}
 		content += "\n记得送上祝福！🎉"
 

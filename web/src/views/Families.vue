@@ -81,8 +81,35 @@
           </div>
         </div>
         <div class="form-group">
-          <label>生日</label>
+          <label>生日类型</label>
+          <div class="birthday-type-toggle">
+            <button type="button" class="type-btn" :class="{ active: personForm.birthday_type === 'solar' }" @click="personForm.birthday_type = 'solar'">☀️ 公历</button>
+            <button type="button" class="type-btn" :class="{ active: personForm.birthday_type === 'lunar' }" @click="personForm.birthday_type = 'lunar'">🌙 农历</button>
+          </div>
+        </div>
+        <div class="form-group" v-if="personForm.birthday_type === 'solar'">
+          <label>公历生日</label>
           <input v-model="personForm.birthday" type="date" />
+        </div>
+        <div class="form-row" v-if="personForm.birthday_type === 'lunar'">
+          <div class="form-group">
+            <label>农历月</label>
+            <select v-model="lunarMonth">
+              <option value="">请选择</option>
+              <option v-for="m in 12" :key="m" :value="m">{{ lunarMonthLabel(m) }}</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>农历日</label>
+            <select v-model="lunarDay">
+              <option value="">请选择</option>
+              <option v-for="d in 30" :key="d" :value="d">{{ lunarDayLabel(d) }}</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group" v-if="personForm.birthday_type === 'lunar' && personForm.birthday">
+          <label>出生年份（公历）</label>
+          <input v-model="birthYear" type="number" min="1900" max="2100" placeholder="如：1990" />
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -129,9 +156,22 @@ const familyForm = ref({ name: '', description: '', webhook_key: '' })
 const showPersonModal = ref(false)
 const targetFamily = ref(null)
 const personForm = ref({
-  name: '', gender: 'unknown', birthday: '', generation: null,
+  name: '', gender: 'unknown', birthday: '', birthday_type: 'solar', generation: null,
   phone: '', address: '', notes: '', is_alive: true,
 })
+const lunarMonth = ref('')
+const lunarDay = ref('')
+const birthYear = ref('')
+
+const lunarMonthNames = ['正', '二', '三', '四', '五', '六', '七', '八', '九', '十', '冬', '腊']
+const lunarDayNames = [
+  '初一', '初二', '初三', '初四', '初五', '初六', '初七', '初八', '初九', '初十',
+  '十一', '十二', '十三', '十四', '十五', '十六', '十七', '十八', '十九', '二十',
+  '廿一', '廿二', '廿三', '廿四', '廿五', '廿六', '廿七', '廿八', '廿九', '三十',
+]
+
+const lunarMonthLabel = (m) => lunarMonthNames[m - 1] + '月'
+const lunarDayLabel = (d) => lunarDayNames[d - 1]
 
 const load = async () => {
   loading.value = true
@@ -177,9 +217,12 @@ const removeFamily = async (f) => {
 const openAddPerson = (f) => {
   targetFamily.value = f
   personForm.value = {
-    name: '', gender: 'unknown', birthday: '', generation: null,
+    name: '', gender: 'unknown', birthday: '', birthday_type: 'solar', generation: null,
     phone: '', address: '', notes: '', is_alive: true,
   }
+  lunarMonth.value = ''
+  lunarDay.value = ''
+  birthYear.value = ''
   showPersonModal.value = true
 }
 
@@ -190,10 +233,13 @@ const closePersonModal = () => {
 
 const submitPerson = async () => {
   if (!personForm.value.name.trim()) return alert('请输入姓名')
-  await personApi.create({
-    ...personForm.value,
-    family_id: targetFamily.value.id,
-  })
+  const data = { ...personForm.value, family_id: targetFamily.value.id }
+  if (data.birthday_type === 'lunar') {
+    if (!lunarMonth.value || !lunarDay.value) return alert('请选择农历月和日')
+    if (!birthYear.value) return alert('请输入出生年份')
+    data.birthday = `${birthYear.value}-${String(lunarMonth.value).padStart(2, '0')}-${String(lunarDay.value).padStart(2, '0')}`
+  }
+  await personApi.create(data)
   closePersonModal()
   load()
 }
@@ -306,6 +352,29 @@ onMounted(load)
 .checkbox-label input[type="checkbox"] {
   width: auto;
   margin: 0;
+}
+
+.birthday-type-toggle {
+  display: flex;
+  gap: 8px;
+}
+
+.type-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: 2px solid #dcdfe6;
+  border-radius: 8px;
+  background: white;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.type-btn.active {
+  border-color: #667eea;
+  background: #f0f2ff;
+  color: #667eea;
+  font-weight: 600;
 }
 
 @media (max-width: 768px) {
