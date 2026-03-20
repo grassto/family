@@ -10,6 +10,7 @@ type Family struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
 	WebhookKey  string `json:"webhook_key,omitempty"`
+	MemberCount int    `json:"member_count"`
 	CreatedAt   string `json:"created_at"`
 	UpdatedAt   string `json:"updated_at"`
 }
@@ -41,8 +42,10 @@ func (r *FamilyRepo) Create(req FamilyCreateReq) (*Family, error) {
 
 func (r *FamilyRepo) GetByID(id int64) (*Family, error) {
 	f := &Family{}
-	err := r.DB.QueryRow("SELECT id, name, COALESCE(description,''), COALESCE(webhook_key,''), created_at, updated_at FROM family WHERE id = ?", id).
-		Scan(&f.ID, &f.Name, &f.Description, &f.WebhookKey, &f.CreatedAt, &f.UpdatedAt)
+	err := r.DB.QueryRow(`SELECT f.id, f.name, COALESCE(f.description,''), COALESCE(f.webhook_key,''),
+		COALESCE((SELECT COUNT(*) FROM person WHERE family_id = f.id), 0),
+		f.created_at, f.updated_at FROM family f WHERE f.id = ?`, id).
+		Scan(&f.ID, &f.Name, &f.Description, &f.WebhookKey, &f.MemberCount, &f.CreatedAt, &f.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +53,9 @@ func (r *FamilyRepo) GetByID(id int64) (*Family, error) {
 }
 
 func (r *FamilyRepo) List() ([]Family, error) {
-	rows, err := r.DB.Query("SELECT id, name, COALESCE(description,''), COALESCE(webhook_key,''), created_at, updated_at FROM family ORDER BY id")
+	rows, err := r.DB.Query(`SELECT f.id, f.name, COALESCE(f.description,''), COALESCE(f.webhook_key,''),
+		COALESCE((SELECT COUNT(*) FROM person WHERE family_id = f.id), 0),
+		f.created_at, f.updated_at FROM family f ORDER BY f.id`)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +64,7 @@ func (r *FamilyRepo) List() ([]Family, error) {
 	var families []Family
 	for rows.Next() {
 		var f Family
-		if err := rows.Scan(&f.ID, &f.Name, &f.Description, &f.WebhookKey, &f.CreatedAt, &f.UpdatedAt); err != nil {
+		if err := rows.Scan(&f.ID, &f.Name, &f.Description, &f.WebhookKey, &f.MemberCount, &f.CreatedAt, &f.UpdatedAt); err != nil {
 			return nil, err
 		}
 		families = append(families, f)

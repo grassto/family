@@ -2,49 +2,111 @@
   <div>
     <div class="page-header">
       <h2>家族管理</h2>
-      <button class="btn btn-primary" @click="showModal = true">+ 新建家族</button>
+      <button class="btn btn-primary" @click="showFamilyModal = true">+ 新建家族</button>
     </div>
 
     <div v-if="loading" class="empty">加载中...</div>
-    <div v-else-if="families.length === 0" class="empty">还没有家族，点击上方按钮创建一个</div>
+    <div v-else-if="families.length === 0" class="empty-state">
+      <div class="empty-icon">👨‍👩‍👧‍👦</div>
+      <p>还没有家族，点击上方按钮创建一个</p>
+    </div>
 
     <div class="grid" v-else>
       <div class="card family-card" v-for="f in families" :key="f.id">
         <div class="family-card-header">
           <h3 @click="$router.push(`/families/${f.id}`)">{{ f.name }}</h3>
           <div class="family-card-actions">
-            <button class="btn btn-sm" @click="edit(f)">编辑</button>
-            <button class="btn btn-sm btn-danger" @click="remove(f)">删除</button>
+            <button class="btn btn-sm" @click="editFamily(f)">编辑</button>
+            <button class="btn btn-sm btn-danger" @click="removeFamily(f)">删除</button>
           </div>
         </div>
         <p class="desc" v-if="f.description">{{ f.description }}</p>
-        <div class="meta">
-          <span class="tag" :class="f.webhook_key ? 'tag-alive' : ''">
-            {{ f.webhook_key ? '✅ 已配置提醒' : '⚠️ 未配置提醒' }}
-          </span>
+        <div class="family-card-footer">
+          <div class="meta">
+            <span class="member-count" @click="$router.push(`/families/${f.id}`)">
+              👥 {{ f.member_count }} 位成员
+            </span>
+            <span class="tag" :class="f.webhook_key ? 'tag-alive' : ''">
+              {{ f.webhook_key ? '✅ 已配置提醒' : '⚠️ 未配置提醒' }}
+            </span>
+          </div>
+          <button class="btn btn-primary btn-sm" @click="openAddPerson(f)">+ 添加成员</button>
         </div>
       </div>
     </div>
 
-    <!-- 新建/编辑弹窗 -->
-    <div class="modal-overlay" v-if="showModal" @click.self="closeModal">
+    <!-- 新建/编辑家族弹窗 -->
+    <div class="modal-overlay" v-if="showFamilyModal" @click.self="closeFamilyModal">
       <div class="modal">
-        <h3>{{ editingId ? '编辑家族' : '新建家族' }}</h3>
+        <h3>{{ editingFamilyId ? '编辑家族' : '新建家族' }}</h3>
         <div class="form-group">
           <label>家族名称 *</label>
-          <input v-model="form.name" placeholder="如：张氏家族" />
+          <input v-model="familyForm.name" placeholder="如：张氏家族" />
         </div>
         <div class="form-group">
           <label>简介</label>
-          <textarea v-model="form.description" rows="3" placeholder="家族简介/堂号/起源地"></textarea>
+          <textarea v-model="familyForm.description" rows="3" placeholder="家族简介/堂号/起源地"></textarea>
         </div>
         <div class="form-group">
           <label>企业微信 Webhook Key</label>
-          <input v-model="form.webhook_key" placeholder="机器人 webhook 地址中的 key 参数" />
+          <input v-model="familyForm.webhook_key" placeholder="机器人 webhook 地址中的 key 参数" />
         </div>
         <div class="modal-actions">
-          <button class="btn" @click="closeModal">取消</button>
-          <button class="btn btn-primary" @click="submit">{{ editingId ? '保存' : '创建' }}</button>
+          <button class="btn" @click="closeFamilyModal">取消</button>
+          <button class="btn btn-primary" @click="submitFamily">{{ editingFamilyId ? '保存' : '创建' }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 快速添加成员弹窗 -->
+    <div class="modal-overlay" v-if="showPersonModal" @click.self="closePersonModal">
+      <div class="modal">
+        <h3>向「{{ targetFamily?.name }}」添加成员</h3>
+        <div class="form-group">
+          <label>姓名 *</label>
+          <input v-model="personForm.name" placeholder="成员姓名" />
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>性别</label>
+            <select v-model="personForm.gender">
+              <option value="unknown">未知</option>
+              <option value="male">男</option>
+              <option value="female">女</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>辈分</label>
+            <input v-model.number="personForm.generation" type="number" min="1" placeholder="第几代" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>生日</label>
+          <input v-model="personForm.birthday" type="date" />
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>电话</label>
+            <input v-model="personForm.phone" placeholder="手机号码" />
+          </div>
+          <div class="form-group">
+            <label>地址</label>
+            <input v-model="personForm.address" placeholder="居住地址" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>备注</label>
+          <textarea v-model="personForm.notes" rows="2" placeholder="其他备注信息"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" v-model="personForm.is_alive" />
+            <span>在世</span>
+          </label>
+        </div>
+        <div class="modal-actions">
+          <button class="btn" @click="closePersonModal">取消</button>
+          <button class="btn btn-primary" @click="submitPerson">添加</button>
         </div>
       </div>
     </div>
@@ -53,13 +115,23 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { familyApi } from '../api'
+import { familyApi, personApi } from '../api'
 
 const families = ref([])
 const loading = ref(true)
-const showModal = ref(false)
-const editingId = ref(null)
-const form = ref({ name: '', description: '', webhook_key: '' })
+
+// 家族相关
+const showFamilyModal = ref(false)
+const editingFamilyId = ref(null)
+const familyForm = ref({ name: '', description: '', webhook_key: '' })
+
+// 成员相关
+const showPersonModal = ref(false)
+const targetFamily = ref(null)
+const personForm = ref({
+  name: '', gender: 'unknown', birthday: '', generation: null,
+  phone: '', address: '', notes: '', is_alive: true,
+})
 
 const load = async () => {
   loading.value = true
@@ -71,32 +143,58 @@ const load = async () => {
   }
 }
 
-const edit = (f) => {
-  editingId.value = f.id
-  form.value = { name: f.name, description: f.description, webhook_key: f.webhook_key }
-  showModal.value = true
+// --- 家族操作 ---
+const editFamily = (f) => {
+  editingFamilyId.value = f.id
+  familyForm.value = { name: f.name, description: f.description, webhook_key: f.webhook_key }
+  showFamilyModal.value = true
 }
 
-const closeModal = () => {
-  showModal.value = false
-  editingId.value = null
-  form.value = { name: '', description: '', webhook_key: '' }
+const closeFamilyModal = () => {
+  showFamilyModal.value = false
+  editingFamilyId.value = null
+  familyForm.value = { name: '', description: '', webhook_key: '' }
 }
 
-const submit = async () => {
-  if (!form.value.name.trim()) return alert('请输入家族名称')
-  if (editingId.value) {
-    await familyApi.update(editingId.value, form.value)
+const submitFamily = async () => {
+  if (!familyForm.value.name.trim()) return alert('请输入家族名称')
+  if (editingFamilyId.value) {
+    await familyApi.update(editingFamilyId.value, familyForm.value)
   } else {
-    await familyApi.create(form.value)
+    await familyApi.create(familyForm.value)
   }
-  closeModal()
+  closeFamilyModal()
   load()
 }
 
-const remove = async (f) => {
+const removeFamily = async (f) => {
   if (!confirm(`确定删除「${f.name}」？所有成员和关系也会被删除。`)) return
   await familyApi.remove(f.id)
+  load()
+}
+
+// --- 成员操作 ---
+const openAddPerson = (f) => {
+  targetFamily.value = f
+  personForm.value = {
+    name: '', gender: 'unknown', birthday: '', generation: null,
+    phone: '', address: '', notes: '', is_alive: true,
+  }
+  showPersonModal.value = true
+}
+
+const closePersonModal = () => {
+  showPersonModal.value = false
+  targetFamily.value = null
+}
+
+const submitPerson = async () => {
+  if (!personForm.value.name.trim()) return alert('请输入姓名')
+  await personApi.create({
+    ...personForm.value,
+    family_id: targetFamily.value.id,
+  })
+  closePersonModal()
   load()
 }
 
@@ -159,9 +257,55 @@ onMounted(load)
   line-height: 1.5;
 }
 
+.family-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 .meta {
   display: flex;
   gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.member-count {
+  font-size: 13px;
+  color: #667eea;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.member-count:hover {
+  text-decoration: underline;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 80px 20px;
+  color: #999;
+}
+
+.empty-icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+}
+
+.empty-state p {
+  font-size: 15px;
+}
+
+.checkbox-label {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: auto;
+  margin: 0;
 }
 
 @media (max-width: 768px) {
@@ -173,6 +317,17 @@ onMounted(load)
 
   .grid {
     grid-template-columns: 1fr;
+  }
+
+  .family-card-footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .family-card-footer .btn {
+    width: 100%;
+    justify-content: center;
   }
 }
 </style>

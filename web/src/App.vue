@@ -3,9 +3,12 @@
     <header class="header">
       <div class="header-inner">
         <h1 class="logo">🌳 家族图谱</h1>
-        <nav class="nav">
-          <router-link to="/families">家族管理</router-link>
-          <router-link to="/birthdays">生日提醒</router-link>
+        <button class="menu-toggle" @click="menuOpen = !menuOpen" aria-label="菜单">
+          <span :class="{ open: menuOpen }"></span>
+        </button>
+        <nav class="nav" :class="{ show: menuOpen }">
+          <router-link to="/families" @click="menuOpen = false">家族管理</router-link>
+          <router-link to="/birthdays" @click="menuOpen = false">生日提醒</router-link>
         </nav>
       </div>
     </header>
@@ -16,6 +19,8 @@
 </template>
 
 <script setup>
+import { ref } from 'vue'
+const menuOpen = ref(false)
 </script>
 
 <style>
@@ -36,6 +41,9 @@ body {
   color: white;
   padding: 0 24px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 100;
 }
 
 .header-inner {
@@ -45,6 +53,7 @@ body {
   align-items: center;
   justify-content: space-between;
   height: 60px;
+  position: relative;
 }
 
 .logo {
@@ -63,6 +72,58 @@ body {
 .nav a:hover,
 .nav a.router-link-active {
   color: #fff;
+}
+
+/* 汉堡菜单按钮 - 桌面端隐藏 */
+.menu-toggle {
+  display: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  position: relative;
+}
+
+.menu-toggle span,
+.menu-toggle span::before,
+.menu-toggle span::after {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: white;
+  border-radius: 2px;
+  position: absolute;
+  left: 5px;
+  transition: all 0.3s;
+}
+
+.menu-toggle span {
+  top: 15px;
+}
+
+.menu-toggle span::before {
+  content: '';
+  top: -7px;
+}
+
+.menu-toggle span::after {
+  content: '';
+  top: 7px;
+}
+
+.menu-toggle span.open {
+  background: transparent;
+}
+
+.menu-toggle span.open::before {
+  top: 0;
+  transform: rotate(45deg);
+}
+
+.menu-toggle span.open::after {
+  top: 0;
+  transform: rotate(-45deg);
 }
 
 .main {
@@ -226,15 +287,34 @@ body {
 
   .header-inner {
     height: 52px;
+    flex-wrap: wrap;
   }
 
   .logo {
     font-size: 17px;
   }
 
+  .menu-toggle {
+    display: block;
+  }
+
+  .nav {
+    display: none;
+    width: 100%;
+    padding: 8px 0 12px;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .nav.show {
+    display: flex;
+  }
+
   .nav a {
-    margin-left: 16px;
-    font-size: 14px;
+    margin-left: 0;
+    padding: 8px 0;
+    font-size: 15px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
   }
 
   .main {
