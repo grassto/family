@@ -13,7 +13,11 @@
     </div>
 
     <div v-if="loading" class="empty">加载中...</div>
-    <div v-else-if="persons.length === 0" class="empty">还没有成员，点击上方按钮添加</div>
+    <div v-else-if="persons.length === 0" class="empty-state">
+      <div class="empty-icon">👤</div>
+      <p>这个家族还没有成员</p>
+      <button class="btn btn-primary" @click="openAddPerson">+ 添加第一个成员</button>
+    </div>
 
     <!-- 桌面端表格 -->
     <div class="card desktop-table" v-if="persons.length > 0">
@@ -79,7 +83,7 @@
         <h3>{{ editingPersonId ? '编辑成员' : '添加成员' }}</h3>
         <div class="form-group">
           <label>姓名 *</label>
-          <input v-model="personForm.name" />
+          <input v-model="personForm.name" placeholder="成员姓名" />
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -102,16 +106,22 @@
         <div class="form-row">
           <div class="form-group">
             <label>电话</label>
-            <input v-model="personForm.phone" />
+            <input v-model="personForm.phone" placeholder="手机号码" />
           </div>
           <div class="form-group">
             <label>地址</label>
-            <input v-model="personForm.address" />
+            <input v-model="personForm.address" placeholder="居住地址" />
           </div>
         </div>
         <div class="form-group">
           <label>备注</label>
-          <textarea v-model="personForm.notes" rows="2"></textarea>
+          <textarea v-model="personForm.notes" rows="2" placeholder="其他备注信息"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" v-model="personForm.is_alive" />
+            <span>在世</span>
+          </label>
         </div>
         <div class="modal-actions">
           <button class="btn" @click="closePersonModal">取消</button>
@@ -139,7 +149,7 @@ const editingPersonId = ref(null)
 
 const personForm = ref({
   name: '', gender: 'unknown', birthday: '', generation: null,
-  phone: '', address: '', notes: '',
+  phone: '', address: '', notes: '', is_alive: true,
 })
 
 const genderLabel = (g) => ({ male: '男', female: '女', unknown: '未知' }[g] || '未知')
@@ -168,7 +178,7 @@ const openAddPerson = () => {
   editingPersonId.value = null
   personForm.value = {
     name: '', gender: 'unknown', birthday: '', generation: null,
-    phone: '', address: '', notes: '',
+    phone: '', address: '', notes: '', is_alive: true,
   }
   showPersonModal.value = true
 }
@@ -178,6 +188,7 @@ const editPerson = (p) => {
   personForm.value = {
     name: p.name, gender: p.gender, birthday: p.birthday,
     generation: p.generation, phone: p.phone, address: p.address, notes: p.notes,
+    is_alive: p.is_alive,
   }
   showPersonModal.value = true
 }
@@ -278,6 +289,23 @@ onMounted(load)
   color: #667eea;
 }
 
+/* 空状态 */
+.empty-state {
+  text-align: center;
+  padding: 80px 20px;
+  color: #999;
+}
+
+.empty-icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+}
+
+.empty-state p {
+  font-size: 15px;
+  margin-bottom: 20px;
+}
+
 /* 移动端卡片 - 默认隐藏 */
 .mobile-cards {
   display: none;
@@ -323,6 +351,18 @@ onMounted(load)
 .person-card-actions {
   display: flex;
   gap: 6px;
+}
+
+.checkbox-label {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: auto;
+  margin: 0;
 }
 
 @media (max-width: 768px) {
