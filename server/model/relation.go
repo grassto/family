@@ -131,6 +131,42 @@ func (r *RelationRepo) GetByPersonID(personID int64) ([]PersonRelation, error) {
 	return rels, nil
 }
 
+type FamilyRelation struct {
+	PersonID   int64  `json:"person_id"`
+	RelatedID  int64  `json:"related_id"`
+	Type       string `json:"type"`
+	TypeLabel  string `json:"type_label"`
+}
+
+// GetByFamilyID returns all relations for persons in a family
+func (r *RelationRepo) GetByFamilyID(familyID int64) ([]FamilyRelation, error) {
+	rows, err := r.DB.Query(`
+		SELECT r.person_id, r.related_id, r.type
+		FROM relation r
+		JOIN person p1 ON p1.id = r.person_id
+		JOIN person p2 ON p2.id = r.related_id
+		WHERE p1.family_id = ? AND p2.family_id = ?
+	`, familyID, familyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var rels []FamilyRelation
+	for rows.Next() {
+		var fr FamilyRelation
+		if err := rows.Scan(&fr.PersonID, &fr.RelatedID, &fr.Type); err != nil {
+			return nil, err
+		}
+		fr.TypeLabel = ValidRelationTypes[fr.Type]
+		rels = append(rels, fr)
+	}
+	if rels == nil {
+		rels = []FamilyRelation{}
+	}
+	return rels, nil
+}
+
 func (r *RelationRepo) Delete(id int64) error {
 	// 先查出关系信息，删除反向关系
 	var personID, relatedID int64

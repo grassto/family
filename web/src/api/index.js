@@ -26,6 +26,7 @@ export const personApi = {
 // Relation
 export const relationApi = {
   getByPerson: (personId) => api.get(`/persons/${personId}/relations`),
+  getByFamily: (familyId) => api.get(`/families/${familyId}/relations`),
   create: (data) => api.post('/relations', data),
   remove: (id) => api.delete(`/relations/${id}`),
   types: () => api.get('/relation-types'),
