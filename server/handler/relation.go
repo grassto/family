@@ -16,6 +16,7 @@ type RelationHandler struct {
 func (h *RelationHandler) Register(r *gin.RouterGroup) {
 	r.POST("/relations", h.Create)
 	r.GET("/persons/:id/relations", h.ListByPerson)
+	r.GET("/families/:id/relations", h.ListByFamily)
 	r.DELETE("/relations/:id", h.Delete)
 	r.GET("/relation-types", h.ListTypes)
 }
@@ -45,6 +46,16 @@ func (h *RelationHandler) Create(c *gin.Context) {
 func (h *RelationHandler) ListByPerson(c *gin.Context) {
 	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 	rels, err := h.Repo.GetByPersonID(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, rels)
+}
+
+func (h *RelationHandler) ListByFamily(c *gin.Context) {
+	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	rels, err := h.Repo.GetByFamilyID(id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

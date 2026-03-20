@@ -12,6 +12,16 @@
       </div>
     </div>
 
+    <!-- 视图切换 -->
+    <div class="view-tabs" v-if="persons.length > 0">
+      <button class="tab" :class="{ active: viewMode === 'list' }" @click="viewMode = 'list'">
+        📋 成员列表
+      </button>
+      <button class="tab" :class="{ active: viewMode === 'tree' }" @click="viewMode = 'tree'">
+        🌳 族谱视图
+      </button>
+    </div>
+
     <div v-if="loading" class="empty">加载中...</div>
     <div v-else-if="persons.length === 0" class="empty-state">
       <div class="empty-icon">👤</div>
@@ -19,63 +29,71 @@
       <button class="btn btn-primary" @click="openAddPerson">+ 添加第一个成员</button>
     </div>
 
-    <!-- 桌面端表格 -->
-    <div class="card desktop-table" v-if="persons.length > 0">
-      <table class="table">
-        <thead>
-          <tr>
-            <th>姓名</th>
-            <th>性别</th>
-            <th>生日</th>
-            <th>辈分</th>
-            <th>状态</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="p in persons" :key="p.id">
-            <td>
-              <router-link :to="`/persons/${p.id}`" class="name-link">{{ p.name }}</router-link>
-            </td>
-            <td>
+    <!-- 族谱视图 -->
+    <div class="card tree-card" v-if="viewMode === 'tree' && persons.length > 0">
+      <FamilyTree :persons="persons" :relations="allRelations" />
+    </div>
+
+    <!-- 列表视图 -->
+    <template v-if="viewMode === 'list' && persons.length > 0">
+      <!-- 桌面端表格 -->
+      <div class="card desktop-table">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>姓名</th>
+              <th>性别</th>
+              <th>生日</th>
+              <th>辈分</th>
+              <th>状态</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="p in persons" :key="p.id">
+              <td>
+                <router-link :to="`/persons/${p.id}`" class="name-link">{{ p.name }}</router-link>
+              </td>
+              <td>
+                <span class="tag" :class="genderClass(p.gender)">{{ genderLabel(p.gender) }}</span>
+              </td>
+              <td>{{ p.birthday || '-' }}</td>
+              <td>{{ p.generation ? `第${p.generation}代` : '-' }}</td>
+              <td>
+                <span class="tag" :class="p.is_alive ? 'tag-alive' : 'tag-dead'">
+                  {{ p.is_alive ? '在世' : '已故' }}
+                </span>
+              </td>
+              <td>
+                <button class="btn btn-sm" @click="editPerson(p)">编辑</button>
+                <button class="btn btn-sm btn-danger" @click="removePerson(p)">删除</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 移动端卡片列表 -->
+      <div class="mobile-cards">
+        <div class="card person-card" v-for="p in persons" :key="'m'+p.id">
+          <div class="person-card-main">
+            <router-link :to="`/persons/${p.id}`" class="person-card-name">{{ p.name }}</router-link>
+            <div class="person-card-tags">
               <span class="tag" :class="genderClass(p.gender)">{{ genderLabel(p.gender) }}</span>
-            </td>
-            <td>{{ p.birthday || '-' }}</td>
-            <td>{{ p.generation ? `第${p.generation}代` : '-' }}</td>
-            <td>
               <span class="tag" :class="p.is_alive ? 'tag-alive' : 'tag-dead'">
                 {{ p.is_alive ? '在世' : '已故' }}
               </span>
-            </td>
-            <td>
-              <button class="btn btn-sm" @click="editPerson(p)">编辑</button>
-              <button class="btn btn-sm btn-danger" @click="removePerson(p)">删除</button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- 移动端卡片列表 -->
-    <div class="mobile-cards" v-if="persons.length > 0">
-      <div class="card person-card" v-for="p in persons" :key="'m'+p.id">
-        <div class="person-card-main">
-          <router-link :to="`/persons/${p.id}`" class="person-card-name">{{ p.name }}</router-link>
-          <div class="person-card-tags">
-            <span class="tag" :class="genderClass(p.gender)">{{ genderLabel(p.gender) }}</span>
-            <span class="tag" :class="p.is_alive ? 'tag-alive' : 'tag-dead'">
-              {{ p.is_alive ? '在世' : '已故' }}
-            </span>
-            <span class="tag" v-if="p.generation">第{{ p.generation }}代</span>
+              <span class="tag" v-if="p.generation">第{{ p.generation }}代</span>
+            </div>
+            <div class="person-card-meta" v-if="p.birthday">🎂 {{ p.birthday }}</div>
           </div>
-          <div class="person-card-meta" v-if="p.birthday">🎂 {{ p.birthday }}</div>
-        </div>
-        <div class="person-card-actions">
-          <button class="btn btn-sm" @click="editPerson(p)">编辑</button>
-          <button class="btn btn-sm btn-danger" @click="removePerson(p)">删除</button>
+          <div class="person-card-actions">
+            <button class="btn btn-sm" @click="editPerson(p)">编辑</button>
+            <button class="btn btn-sm btn-danger" @click="removePerson(p)">删除</button>
+          </div>
         </div>
       </div>
-    </div>
+    </template>
 
     <!-- 添加/编辑成员弹窗 -->
     <div class="modal-overlay" v-if="showPersonModal" @click.self="closePersonModal">
@@ -135,17 +153,20 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { familyApi, personApi } from '../api'
+import { familyApi, personApi, relationApi } from '../api'
+import FamilyTree from '../components/FamilyTree.vue'
 
 const route = useRoute()
 const familyId = route.params.id
 
 const family = ref(null)
 const persons = ref([])
+const allRelations = ref([])
 const loading = ref(true)
 const keyword = ref('')
 const showPersonModal = ref(false)
 const editingPersonId = ref(null)
+const viewMode = ref('list')
 
 const personForm = ref({
   name: '', gender: 'unknown', birthday: '', generation: null,
@@ -165,10 +186,15 @@ const loadPersons = async () => {
   persons.value = data
 }
 
+const loadRelations = async () => {
+  const { data } = await relationApi.getByFamily(familyId)
+  allRelations.value = data
+}
+
 const load = async () => {
   loading.value = true
   try {
-    await Promise.all([loadFamily(), loadPersons()])
+    await Promise.all([loadFamily(), loadPersons(), loadRelations()])
   } finally {
     loading.value = false
   }
@@ -207,12 +233,13 @@ const submitPerson = async () => {
   }
   closePersonModal()
   loadPersons()
+  loadRelations()
 }
 
 const removePerson = async (p) => {
   if (!confirm(`确定删除「${p.name}」？`)) return
   await personApi.remove(p.id)
-  loadPersons()
+  load()
 }
 
 onMounted(load)
@@ -223,7 +250,7 @@ onMounted(load)
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .back {
@@ -255,6 +282,44 @@ onMounted(load)
 .search:focus {
   outline: none;
   border-color: #667eea;
+}
+
+/* 视图切换 */
+.view-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  background: white;
+  border-radius: 10px;
+  padding: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.tab {
+  flex: 1;
+  padding: 10px 16px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  color: #666;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.tab:hover {
+  background: #f5f7fa;
+}
+
+.tab.active {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+}
+
+/* 族谱卡片 */
+.tree-card {
+  overflow: visible;
 }
 
 .table {
