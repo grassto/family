@@ -84,6 +84,11 @@ function addParentChild(parent, child) {
   insRelation(child, parent, 'child');
 }
 
+function addInLaw(a, b) {
+  insRelation(a, b, 'in_law');
+  insRelation(b, a, 'in_law');
+}
+
 function addSiblings(ids) {
   for (let i = 0; i < ids.length; i++) {
     for (let j = i + 1; j < ids.length; j++) {
@@ -149,10 +154,19 @@ addParentChild(chen_wei, chen_jiayang);
   insRelation(g, zhang_xiulan, 'grandchild');
 });
 
+// 姻亲: 儿媳/女婿 ↔ 公婆/岳父母
+addInLaw(wang_shufang, zhang_mingyuan);
+addInLaw(wang_shufang, zhang_xiulan);
+addInLaw(li_meiling, zhang_mingyuan);
+addInLaw(li_meiling, zhang_xiulan);
+addInLaw(chen_wei, zhang_mingyuan);
+addInLaw(chen_wei, zhang_xiulan);
+
 // 第3代配偶
 const liu_xiaojing = insPerson(f1, '刘晓静', 'female', '1992-04-05', 3, '13800003006', '河南省洛阳市涧西区', '浩然之妻，护士');
 addCouple(zhang_haoran, liu_xiaojing);
-addParentChild(liu_xiaojing, zhang_mingyuan); // 姻亲（简化）
+addInLaw(liu_xiaojing, zhang_mingyuan); // 姻亲
+addInLaw(liu_xiaojing, zhang_xiulan);  // 姻亲
 
 // 第4代
 const zhang_rui    = insPerson(f1, '张睿', 'male', '2018-09-12', 4, null, '河南省洛阳市涧西区', '浩然之子，小学一年级');
