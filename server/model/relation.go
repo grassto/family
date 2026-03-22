@@ -167,6 +167,54 @@ func (r *RelationRepo) GetByFamilyID(familyID int64) ([]FamilyRelation, error) {
 	return rels, nil
 }
 
+func (r *RelationRepo) Update(id int64, req RelationReq) (*Relation, error) {
+	// 查出旧关系信息
+	var oldPersonID, oldRelatedID int64
+	var oldType string
+	err := r.DB.QueryRow("SELECT person_id, related_id, type FROM relation WHERE id = ?", id).
+		Scan(&oldPersonID, &oldRelatedID, &oldType)
+	if err != nil {
+		return nil, err
+	}
+
+	tx, err := r.DB.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	// 更新正向关系
+	_, err = tx.Exec("UPDATE relation SET person_id = ?, related_id = ?, type = ? WHERE id = ?",
+		req.PersonID, req.RelatedID, req.Type, id)
+	if err != nil {
+		return nil, err
+	}
+
+	// 删除旧反向关系
+	oldReverse := ReverseMap[oldType]
+	if oldReverse != "" {
+		tx.Exec("DELETE FROM relation WHERE person_id = ? AND related_id = ? AND type = ?",
+			oldRelatedID, oldPersonID, oldReverse)
+	}
+
+	// 创建新反向关系
+	reverse := ReverseMap[req.Type]
+	if reverse != "" {
+		var exists int
+		tx.QueryRow("SELECT COUNT(*) FROM relation WHERE person_id = ? AND related_id = ? AND type = ?",
+			req.RelatedID, req.PersonID, reverse).Scan(&exists)
+		if exists == 0 {
+			tx.Exec("INSERT INTO relation (person_id, related_id, type) VALUES (?, ?, ?)",
+				req.RelatedID, req.PersonID, reverse)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return r.GetByID(id)
+}
+
 func (r *RelationRepo) Delete(id int64) error {
 	// 先查出关系信息，删除反向关系
 	var personID, relatedID int64
