@@ -57,6 +57,7 @@
           <div class="relation-item" v-for="r in relations" :key="r.relation_id">
             <router-link :to="`/persons/${r.person_id}`" class="relation-name">{{ r.person_name }}</router-link>
             <span class="relation-type">{{ r.type_label }}</span>
+            <button class="btn btn-sm" @click="editRelation(r)">编辑</button>
             <button class="btn btn-sm btn-danger" @click="removeRelation(r.relation_id)">解除</button>
           </div>
         </div>
@@ -163,6 +164,30 @@
         </div>
       </div>
     </div>
+
+    <!-- 编辑关系弹窗 -->
+    <div class="modal-overlay" v-if="showEditRelationModal" @click.self="showEditRelationModal = false">
+      <div class="modal">
+        <h3>编辑关系</h3>
+        <div class="form-group">
+          <label>关系人</label>
+          <select v-model="editRelationForm.related_id">
+            <option value="">请选择...</option>
+            <option v-for="p in otherPersons" :key="p.id" :value="p.id">{{ p.name }}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>关系类型</label>
+          <select v-model="editRelationForm.type">
+            <option v-for="t in relationTypes" :key="t.value" :value="t.value">{{ t.label }}</option>
+          </select>
+        </div>
+        <div class="modal-actions">
+          <button class="btn" @click="showEditRelationModal = false">取消</button>
+          <button class="btn btn-primary" @click="saveEditRelation">保存</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -181,9 +206,12 @@ const relationTypes = ref([])
 const loading = ref(true)
 const showEditModal = ref(false)
 const showRelationModal = ref(false)
+const showEditRelationModal = ref(false)
+const editingRelationId = ref(null)
 
 const editForm = ref({})
 const relationForm = ref({ related_id: '', type: 'parent' })
+const editRelationForm = ref({ related_id: '', type: 'parent' })
 const lunarMonth = ref('')
 const lunarDay = ref('')
 const birthYear = ref('')
@@ -269,6 +297,27 @@ const addRelation = async () => {
 const removeRelation = async (id) => {
   if (!confirm('确定解除此关系？')) return
   await relationApi.remove(id)
+  load()
+}
+
+const editRelation = (r) => {
+  editingRelationId.value = r.relation_id
+  editRelationForm.value = {
+    related_id: r.person_id,
+    type: r.type,
+  }
+  showEditRelationModal.value = true
+}
+
+const saveEditRelation = async () => {
+  if (!editRelationForm.value.related_id) return alert('请选择关系人')
+  await relationApi.update(editingRelationId.value, {
+    person_id: Number(personId),
+    related_id: Number(editRelationForm.value.related_id),
+    type: editRelationForm.value.type,
+  })
+  showEditRelationModal.value = false
+  editingRelationId.value = null
   load()
 }
 
