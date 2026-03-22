@@ -14,16 +14,18 @@ var ValidRelationTypes = map[string]string{
 
 // StoredRelationTypes: only these can be created directly; others are derived
 var StoredRelationTypes = map[string]bool{
-	"parent": true,
-	"child":  true,
-	"spouse": true,
+	"parent":  true,
+	"child":   true,
+	"spouse":  true,
+	"sibling": true,
 }
 
 // ReverseMap: 存 A→type→B 时，同时推导出 B→reverse→A
 var ReverseMap = map[string]string{
-	"parent": "child",
-	"child":  "parent",
-	"spouse": "spouse",
+	"parent":  "child",
+	"child":   "parent",
+	"spouse":  "spouse",
+	"sibling": "sibling",
 }
 
 type Relation struct {
