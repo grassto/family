@@ -17,6 +17,26 @@ func Init(dbPath string) *sql.DB {
 	return db
 }
 
+func hasColumn(db *sql.DB, table, col string) bool {
+	rows, err := db.Query("PRAGMA table_info(" + table + ")")
+	if err != nil {
+		log.Fatalf("migration failed: pragma table_info: %v", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid, notnull, pk int
+		var name, ctype string
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			log.Fatalf("migration failed: scan table_info: %v", err)
+		}
+		if name == col {
+			return true
+		}
+	}
+	return false
+}
+
 func migrate(db *sql.DB) {
 	stmts := []string{
 		`CREATE TABLE IF NOT EXISTS family (
@@ -58,12 +78,17 @@ func migrate(db *sql.DB) {
 		`CREATE INDEX IF NOT EXISTS idx_relation_person ON relation(person_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_relation_related ON relation(related_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_person_birthday ON person(birthday)`,
-		`ALTER TABLE person ADD COLUMN birthday_type TEXT CHECK(birthday_type IN ('solar','lunar')) DEFAULT 'solar'`,
 	}
 
 	for _, s := range stmts {
 		if _, err := db.Exec(s); err != nil {
 			log.Fatalf("migration failed: %v\nSQL: %s", err, s)
+		}
+	}
+
+	if !hasColumn(db, "person", "birthday_type") {
+		if _, err := db.Exec(`ALTER TABLE person ADD COLUMN birthday_type TEXT CHECK(birthday_type IN ('solar','lunar')) DEFAULT 'solar'`); err != nil {
+			log.Fatalf("migration failed: %v", err)
 		}
 	}
 
