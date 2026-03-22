@@ -17,6 +17,7 @@ func (h *RelationHandler) Register(r *gin.RouterGroup) {
 	r.POST("/relations", h.Create)
 	r.GET("/persons/:id/relations", h.ListByPerson)
 	r.GET("/families/:id/relations", h.ListByFamily)
+	r.PUT("/relations/:id", h.Update)
 	r.DELETE("/relations/:id", h.Delete)
 	r.GET("/relation-types", h.ListTypes)
 }
@@ -61,6 +62,29 @@ func (h *RelationHandler) ListByFamily(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, rels)
+}
+
+func (h *RelationHandler) Update(c *gin.Context) {
+	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	var req model.RelationReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.PersonID == req.RelatedID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "cannot create relation with self"})
+		return
+	}
+	if _, ok := model.ValidRelationTypes[req.Type]; !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid relation type"})
+		return
+	}
+	rel, err := h.Repo.Update(id, req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, rel)
 }
 
 func (h *RelationHandler) Delete(c *gin.Context) {
