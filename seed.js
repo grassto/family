@@ -39,7 +39,7 @@ db.exec(`
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     person_id   INTEGER NOT NULL,
     related_id  INTEGER NOT NULL,
-    type        TEXT NOT NULL CHECK(type IN ('parent','child','spouse','sibling','in_law','grandparent','grandchild')),
+    type        TEXT NOT NULL CHECK(type IN ('parent','child','spouse','sibling')),
     created_at  DATETIME DEFAULT (datetime('now','localtime')),
     FOREIGN KEY (person_id) REFERENCES person(id) ON DELETE CASCADE,
     FOREIGN KEY (related_id) REFERENCES person(id) ON DELETE CASCADE,
@@ -57,7 +57,7 @@ db.exec('DELETE FROM person');
 db.exec('DELETE FROM family');
 db.exec("DELETE FROM sqlite_sequence");
 
-// ============ 家族 1: 张氏家族 (4代人，完整) ============
+// ============ 家族 1: 张氏家族 (4代人) ============
 const f1 = db.prepare('INSERT INTO family (name, description, webhook_key) VALUES (?, ?, ?)')
   .run('张氏家族', '河南洛阳张氏，始祖张明远，堂号「百忍堂」', '').lastInsertRowid;
 
@@ -82,11 +82,6 @@ function addCouple(a, b) {
 function addParentChild(parent, child) {
   insRelation(parent, child, 'parent');
   insRelation(child, parent, 'child');
-}
-
-function addInLaw(a, b) {
-  insRelation(a, b, 'in_law');
-  insRelation(b, a, 'in_law');
 }
 
 function addSiblings(ids) {
@@ -117,10 +112,12 @@ addCouple(zhang_jianni, chen_wei);
 addSiblings([zhang_jianguo, zhang_jianhua, zhang_jianni]);
 
 // 祖父母 -> 子女
-[zhang_jianguo, zhang_jianhua, zhang_jianni].forEach(c => {
-  addParentChild(zhang_mingyuan, c);
-  addParentChild(zhang_xiulan, c);
-});
+addParentChild(zhang_mingyuan, zhang_jianguo);
+addParentChild(zhang_xiulan, zhang_jianguo);
+addParentChild(zhang_mingyuan, zhang_jianhua);
+addParentChild(zhang_xiulan, zhang_jianhua);
+addParentChild(zhang_mingyuan, zhang_jianni);
+addParentChild(zhang_xiulan, zhang_jianni);
 
 // 第3代: 5个孙辈
 const zhang_haoran  = insPerson(f1, '张浩然', 'male', '1990-06-15', 3, '13800003001', '河南省洛阳市涧西区', '建国长子，银行职员');
@@ -129,59 +126,38 @@ const zhang_zihan   = insPerson(f1, '张子涵', 'male', '1995-12-01', 3, '13800
 const chen_jiayi    = insPerson(f1, '陈佳怡', 'female', '1996-08-20', 3, '13800003004', '上海市浦东新区', '建妮之女，留学生');
 const chen_jiayang  = insPerson(f1, '陈嘉阳', 'male', '1999-03-10', 3, '13800003005', '上海市浦东新区', '建妮之子，大四学生');
 
-addSiblings([zhang_haoran, zhang_yuxin]);
-addSiblings([chen_jiayi, chen_jiayang]);
-
-// 父母 -> 子女
+// 父母 -> 子女（兄弟姐妹关系也显式存储）
 addParentChild(zhang_jianguo, zhang_haoran);
 addParentChild(wang_shufang, zhang_haoran);
 addParentChild(zhang_jianguo, zhang_yuxin);
 addParentChild(wang_shufang, zhang_yuxin);
+addSiblings([zhang_haoran, zhang_yuxin]);
 addParentChild(zhang_jianhua, zhang_zihan);
 addParentChild(li_meiling, zhang_zihan);
 addParentChild(zhang_jianni, chen_jiayi);
 addParentChild(chen_wei, chen_jiayi);
 addParentChild(zhang_jianni, chen_jiayang);
 addParentChild(chen_wei, chen_jiayang);
+addSiblings([chen_jiayi, chen_jiayang]);
 
-// 祖父母 -> 孙辈
-[zhang_haoran, zhang_yuxin, zhang_zihan, chen_jiayi, chen_jiayang].forEach(g => {
-  addParentChild(zhang_mingyuan, g);
-  addParentChild(zhang_xiulan, g);
-  insRelation(zhang_mingyuan, g, 'grandparent');
-  insRelation(g, zhang_mingyuan, 'grandchild');
-  insRelation(zhang_xiulan, g, 'grandparent');
-  insRelation(g, zhang_xiulan, 'grandchild');
-});
-
-// 姻亲: 儿媳/女婿 ↔ 公婆/岳父母
-addInLaw(wang_shufang, zhang_mingyuan);
-addInLaw(wang_shufang, zhang_xiulan);
-addInLaw(li_meiling, zhang_mingyuan);
-addInLaw(li_meiling, zhang_xiulan);
-addInLaw(chen_wei, zhang_mingyuan);
-addInLaw(chen_wei, zhang_xiulan);
+// 祖父母 -> 孙辈（祖孙关系由"父母的父母"自动推导）
+// 姻亲关系由"配偶的父母"自动推导
 
 // 第3代配偶
 const liu_xiaojing = insPerson(f1, '刘晓静', 'female', '1992-04-05', 3, '13800003006', '河南省洛阳市涧西区', '浩然之妻，护士');
 addCouple(zhang_haoran, liu_xiaojing);
-addInLaw(liu_xiaojing, zhang_mingyuan); // 姻亲
-addInLaw(liu_xiaojing, zhang_xiulan);  // 姻亲
+// 姻亲关系（刘晓静 ↔ 张明远/张秀兰）自动推导
 
 // 第4代
 const zhang_rui    = insPerson(f1, '张睿', 'male', '2018-09-12', 4, null, '河南省洛阳市涧西区', '浩然之子，小学一年级');
 const zhang_yihan  = insPerson(f1, '张艺涵', 'female', '2020-03-25', 4, null, '河南省洛阳市涧西区', '浩然之女，幼儿园');
-addSiblings([zhang_rui, zhang_yihan]);
 addParentChild(zhang_haoran, zhang_rui);
 addParentChild(liu_xiaojing, zhang_rui);
 addParentChild(zhang_haoran, zhang_yihan);
 addParentChild(liu_xiaojing, zhang_yihan);
+addSiblings([zhang_rui, zhang_yihan]);
 
-// 姻亲关系
-insRelation(zhang_jianguo, li_meiling, 'in_law');
-insRelation(zhang_jianhua, wang_shufang, 'in_law');
-
-// ============ 家族 2: 李氏家族 (3代人，部分数据) ============
+// ============ 家族 2: 李氏家族 (3代人) ============
 const f2 = db.prepare('INSERT INTO family (name, description, webhook_key) VALUES (?, ?, ?)')
   .run('李氏家族', '山东济南李氏，堂号「陇西堂」', '').lastInsertRowid;
 
@@ -209,7 +185,7 @@ addParentChild(zhao_mei, li_minghao);
 addParentChild(li_guohua, li_mingyu);
 addParentChild(huang_lili, li_mingyu);
 
-// ============ 家族 3: 王氏家族 (只有创始人，空家族) ============
+// ============ 家族 3: 王氏家族 (空家族) ============
 const f3 = db.prepare('INSERT INTO family (name, description, webhook_key) VALUES (?, ?, ?)')
   .run('王氏家族', '广东潮汕王氏，堂号「三槐堂」（待录入成员）', '').lastInsertRowid;
 
@@ -223,5 +199,7 @@ console.log(`   家族: ${famCount}`);
 console.log(`   成员: ${personCount}`);
 console.log(`   关系: ${relCount}`);
 console.log(`   数据库: ${dbPath}`);
+console.log(`\n   关系仅包含 parent/child/spouse`);
+console.log(`   兄弟姐妹、祖孙、姻亲关系将自动推导`);
 
 db.close();

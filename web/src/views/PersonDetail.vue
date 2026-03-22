@@ -54,11 +54,13 @@
 
         <div v-if="relations.length === 0" class="empty">暂无关系记录</div>
         <div v-else class="relation-list">
-          <div class="relation-item" v-for="r in relations" :key="r.relation_id">
+          <div class="relation-item" v-for="r in relations" :key="r.relation_id + '-' + r.type + '-' + r.person_id">
             <router-link :to="`/persons/${r.person_id}`" class="relation-name">{{ r.person_name }}</router-link>
-            <span class="relation-type">{{ r.type_label }}</span>
-            <button class="btn btn-sm" @click="editRelation(r)">编辑</button>
-            <button class="btn btn-sm btn-danger" @click="removeRelation(r.relation_id)">解除</button>
+            <span class="relation-type" :class="{ 'relation-derived': r.derived }">{{ r.type_label }}{{ r.derived ? ' (自动)' : '' }}</span>
+            <template v-if="!r.derived">
+              <button class="btn btn-sm" @click="editRelation(r)">编辑</button>
+              <button class="btn btn-sm btn-danger" @click="removeRelation(r.relation_id)">解除</button>
+            </template>
           </div>
         </div>
       </div>
@@ -155,9 +157,10 @@
         <div class="form-group">
           <label>关系类型</label>
           <select v-model="relationForm.type">
-            <option v-for="t in relationTypes" :key="t.value" :value="t.value">{{ t.label }}</option>
+            <option v-for="t in storedRelationTypes" :key="t.value" :value="t.value">{{ t.label }}</option>
           </select>
         </div>
+        <p class="form-hint">💡 兄弟姐妹、祖孙、姻亲等关系会根据父母/配偶关系自动推导</p>
         <div class="modal-actions">
           <button class="btn" @click="showRelationModal = false">取消</button>
           <button class="btn btn-primary" @click="addRelation">添加</button>
@@ -179,7 +182,7 @@
         <div class="form-group">
           <label>关系类型</label>
           <select v-model="editRelationForm.type">
-            <option v-for="t in relationTypes" :key="t.value" :value="t.value">{{ t.label }}</option>
+            <option v-for="t in storedRelationTypes" :key="t.value" :value="t.value">{{ t.label }}</option>
           </select>
         </div>
         <div class="modal-actions">
@@ -237,6 +240,10 @@ const ageText = computed(() => {
   if (person.value.birthday_type === 'lunar') label += ' 🌙农历'
   return label
 })
+
+const storedRelationTypes = computed(() =>
+  relationTypes.value.filter(t => t.stored !== false)
+)
 
 const otherPersons = computed(() =>
   allPersons.value.filter(p => p.id !== Number(personId.value))
@@ -439,6 +446,18 @@ watch(personId, () => {
   background: #f0f2ff;
   padding: 2px 10px;
   border-radius: 12px;
+}
+
+.form-hint {
+  font-size: 12px;
+  color: #999;
+  margin-top: -8px;
+  margin-bottom: 16px;
+}
+
+.relation-derived {
+  background: #f5f5f5;
+  color: #999;
 }
 
 @media (max-width: 768px) {

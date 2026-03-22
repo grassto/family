@@ -68,7 +68,7 @@ func migrate(db *sql.DB) {
 			id          INTEGER PRIMARY KEY AUTOINCREMENT,
 			person_id   INTEGER NOT NULL,
 			related_id  INTEGER NOT NULL,
-			type        TEXT NOT NULL CHECK(type IN ('parent','child','spouse','sibling','in_law','grandparent','grandchild')),
+			type        TEXT NOT NULL CHECK(type IN ('parent','child','spouse','sibling')),
 			created_at  DATETIME DEFAULT (datetime('now','localtime')),
 			FOREIGN KEY (person_id) REFERENCES person(id) ON DELETE CASCADE,
 			FOREIGN KEY (related_id) REFERENCES person(id) ON DELETE CASCADE,
