@@ -143,7 +143,7 @@ func (r *PersonRepo) ListByFamily(familyID int64, keyword string) ([]Person, err
 			&photoURL, &phone, &address, &notes, &p.IsAlive, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			return nil, err
 		}
-		assignPersonFields(p, &birthday, &birthdayType, &photoURL, &phone, &address, &notes, &gen)
+		assignPersonFields(&p, &birthday, &birthdayType, &photoURL, &phone, &address, &notes, &gen)
 		persons = append(persons, p)
 	}
 	if persons == nil {
@@ -231,7 +231,7 @@ func (r *PersonRepo) GetAllAlive() ([]Person, error) {
 			&photoURL, &phone, &address, &notes, &p.IsAlive, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			return nil, err
 		}
-		assignPersonFields(p, &birthday, &birthdayType, &photoURL, &phone, &address, &notes, &gen)
+		assignPersonFields(&p, &birthday, &birthdayType, &photoURL, &phone, &address, &notes, &gen)
 		persons = append(persons, p)
 	}
 	if persons == nil {

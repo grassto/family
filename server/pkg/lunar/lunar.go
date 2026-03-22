@@ -10,9 +10,10 @@ import (
 // lunarInfo contains lunar calendar data from 1900 to 2100.
 // Each entry encodes: days in year (12/13 months), leap month, and days per month.
 // Bit format: 0xAAAABBCC
-//   AAAA = number of days in each month (12/13 bits, 1=30, 0=29)
-//   BB   = leap month (0 = no leap, 1-12 = which month is leap)
-//   CC   = days in leap month (0=29, 1=30)
+//
+//	AAAA = number of days in each month (12/13 bits, 1=30, 0=29)
+//	BB   = leap month (0 = no leap, 1-12 = which month is leap)
+//	CC   = days in leap month (0=29, 1=30)
 var lunarInfo = []uint32{
 	0x04bd8, 0x04ae0, 0x0a570, 0x054d5, 0x0d260, 0x0d950, 0x16554, 0x056a0, 0x09ad0, 0x055d2, // 1900-1909
 	0x04ae0, 0x0a5b6, 0x0a4d0, 0x0d250, 0x1d255, 0x0b540, 0x0d6a0, 0x0ada2, 0x095b0, 0x14977, // 1910-1919
@@ -60,10 +61,10 @@ const baseDate = "1900-01-31" // 农历1900年正月初一对应的公历日期
 
 // LunarDate represents a Chinese lunar date.
 type LunarDate struct {
-	Year    int  `json:"year"`
-	Month   int  `json:"month"`
-	Day     int  `json:"day"`
-	IsLeap  bool `json:"is_leap"`
+	Year   int  `json:"year"`
+	Month  int  `json:"month"`
+	Day    int  `json:"day"`
+	IsLeap bool `json:"is_leap"`
 }
 
 // GetLunarYearDays returns the total number of days in a lunar year.
@@ -225,7 +226,7 @@ func (l *LunarDate) FormatWithYear() string {
 	tg := tianGan[(l.Year-4)%10]
 	dz := diZhi[(l.Year-4)%12]
 	sx := shengXiao[(l.Year-4)%12]
-	return fmt.Sprintf("%s%s年 %s", tg, dz, l.Format())
+	return fmt.Sprintf("%s%s（%s）年 %s", tg, dz, sx, l.Format())
 }
 
 // GetZodiac returns the zodiac animal for the lunar year.

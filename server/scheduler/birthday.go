@@ -63,8 +63,6 @@ func (s *BirthdayScheduler) checkAndNotify() {
 		return
 	}
 
-	now := time.Now()
-
 	for _, family := range families {
 		// 查这个家族今天生日的人
 		persons, err := s.personRepo.GetBirthdayTodayByFamily(family.ID)
