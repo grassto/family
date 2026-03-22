@@ -192,12 +192,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { personApi, relationApi } from '../api'
 
 const route = useRoute()
-const personId = route.params.id
+const personId = computed(() => route.params.id)
 
 const person = ref(null)
 const relations = ref([])
@@ -239,15 +239,15 @@ const ageText = computed(() => {
 })
 
 const otherPersons = computed(() =>
-  allPersons.value.filter(p => p.id !== Number(personId))
+  allPersons.value.filter(p => p.id !== Number(personId.value))
 )
 
 const load = async () => {
   loading.value = true
   try {
     const [pRes, rRes, tRes] = await Promise.all([
-      personApi.get(personId),
-      relationApi.getByPerson(personId),
+      personApi.get(personId.value),
+      relationApi.getByPerson(personId.value),
       relationApi.types(),
     ])
     person.value = pRes.data
@@ -277,7 +277,7 @@ const saveEdit = async () => {
     if (!birthYear.value) return alert('请输入出生年份')
     data.birthday = `${birthYear.value}-${String(lunarMonth.value).padStart(2, '0')}-${String(lunarDay.value).padStart(2, '0')}`
   }
-  await personApi.update(personId, data)
+  await personApi.update(personId.value, data)
   showEditModal.value = false
   load()
 }
@@ -285,7 +285,7 @@ const saveEdit = async () => {
 const addRelation = async () => {
   if (!relationForm.value.related_id) return alert('请选择关系人')
   await relationApi.create({
-    person_id: Number(personId),
+    person_id: Number(personId.value),
     related_id: Number(relationForm.value.related_id),
     type: relationForm.value.type,
   })
@@ -312,7 +312,7 @@ const editRelation = (r) => {
 const saveEditRelation = async () => {
   if (!editRelationForm.value.related_id) return alert('请选择关系人')
   await relationApi.update(editingRelationId.value, {
-    person_id: Number(personId),
+    person_id: Number(personId.value),
     related_id: Number(editRelationForm.value.related_id),
     type: editRelationForm.value.type,
   })
@@ -322,6 +322,13 @@ const saveEditRelation = async () => {
 }
 
 onMounted(load)
+
+watch(personId, () => {
+  showEditModal.value = false
+  showRelationModal.value = false
+  showEditRelationModal.value = false
+  load()
+})
 </script>
 
 <style scoped>
