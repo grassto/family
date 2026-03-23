@@ -17,6 +17,26 @@ func Init(dbPath string) *sql.DB {
 	return db
 }
 
+func hasColumn(db *sql.DB, table, col string) bool {
+	rows, err := db.Query("PRAGMA table_info(" + table + ")")
+	if err != nil {
+		log.Fatalf("migration failed: pragma table_info: %v", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid, notnull, pk int
+		var name, ctype string
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			log.Fatalf("migration failed: scan table_info: %v", err)
+		}
+		if name == col {
+			return true
+		}
+	}
+	return false
+}
+
 func migrate(db *sql.DB) {
 	stmts := []string{
 		`CREATE TABLE IF NOT EXISTS family (
@@ -33,6 +53,7 @@ func migrate(db *sql.DB) {
 			name        TEXT NOT NULL,
 			gender      TEXT CHECK(gender IN ('male','female','unknown')) DEFAULT 'unknown',
 			birthday    TEXT,
+			birthday_type TEXT CHECK(birthday_type IN ('solar','lunar')) DEFAULT 'solar',
 			generation  INTEGER,
 			photo_url   TEXT,
 			phone       TEXT,
@@ -47,7 +68,7 @@ func migrate(db *sql.DB) {
 			id          INTEGER PRIMARY KEY AUTOINCREMENT,
 			person_id   INTEGER NOT NULL,
 			related_id  INTEGER NOT NULL,
-			type        TEXT NOT NULL CHECK(type IN ('parent','child','spouse','sibling','in_law','grandparent','grandchild')),
+			type        TEXT NOT NULL CHECK(type IN ('parent','child','spouse','sibling')),
 			created_at  DATETIME DEFAULT (datetime('now','localtime')),
 			FOREIGN KEY (person_id) REFERENCES person(id) ON DELETE CASCADE,
 			FOREIGN KEY (related_id) REFERENCES person(id) ON DELETE CASCADE,
@@ -62,6 +83,12 @@ func migrate(db *sql.DB) {
 	for _, s := range stmts {
 		if _, err := db.Exec(s); err != nil {
 			log.Fatalf("migration failed: %v\nSQL: %s", err, s)
+		}
+	}
+
+	if !hasColumn(db, "person", "birthday_type") {
+		if _, err := db.Exec(`ALTER TABLE person ADD COLUMN birthday_type TEXT CHECK(birthday_type IN ('solar','lunar')) DEFAULT 'solar'`); err != nil {
+			log.Fatalf("migration failed: %v", err)
 		}
 	}
 

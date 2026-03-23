@@ -17,6 +17,7 @@ func (h *RelationHandler) Register(r *gin.RouterGroup) {
 	r.POST("/relations", h.Create)
 	r.GET("/persons/:id/relations", h.ListByPerson)
 	r.GET("/families/:id/relations", h.ListByFamily)
+	r.PUT("/relations/:id", h.Update)
 	r.DELETE("/relations/:id", h.Delete)
 	r.GET("/relation-types", h.ListTypes)
 }
@@ -31,8 +32,8 @@ func (h *RelationHandler) Create(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "cannot create relation with self"})
 		return
 	}
-	if _, ok := model.ValidRelationTypes[req.Type]; !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid relation type"})
+	if !model.StoredRelationTypes[req.Type] {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "only parent, child, and spouse can be created directly; other relations are derived"})
 		return
 	}
 	rel, err := h.Repo.Create(req)
@@ -63,6 +64,29 @@ func (h *RelationHandler) ListByFamily(c *gin.Context) {
 	c.JSON(http.StatusOK, rels)
 }
 
+func (h *RelationHandler) Update(c *gin.Context) {
+	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	var req model.RelationReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.PersonID == req.RelatedID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "cannot create relation with self"})
+		return
+	}
+	if !model.StoredRelationTypes[req.Type] {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "only parent, child, and spouse can be updated directly"})
+		return
+	}
+	rel, err := h.Repo.Update(id, req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, rel)
+}
+
 func (h *RelationHandler) Delete(c *gin.Context) {
 	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err := h.Repo.Delete(id); err != nil {
@@ -72,10 +96,16 @@ func (h *RelationHandler) Delete(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
 }
 
+// ListTypes returns all relation types, marking which are stored vs derived
 func (h *RelationHandler) ListTypes(c *gin.Context) {
-	types := make([]map[string]string, 0, len(model.ValidRelationTypes))
+	types := make([]map[string]interface{}, 0, len(model.ValidRelationTypes))
 	for k, v := range model.ValidRelationTypes {
-		types = append(types, map[string]string{"value": k, "label": v})
+		types = append(types, map[string]interface{}{
+			"value":   k,
+			"label":   v,
+			"stored":  model.StoredRelationTypes[k],
+			"derived": !model.StoredRelationTypes[k],
+		})
 	}
 	c.JSON(http.StatusOK, types)
 }

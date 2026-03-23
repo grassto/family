@@ -54,10 +54,13 @@
 
         <div v-if="relations.length === 0" class="empty">暂无关系记录</div>
         <div v-else class="relation-list">
-          <div class="relation-item" v-for="r in relations" :key="r.relation_id">
+          <div class="relation-item" v-for="r in relations" :key="r.relation_id + '-' + r.type + '-' + r.person_id">
             <router-link :to="`/persons/${r.person_id}`" class="relation-name">{{ r.person_name }}</router-link>
-            <span class="relation-type">{{ r.type_label }}</span>
-            <button class="btn btn-sm btn-danger" @click="removeRelation(r.relation_id)">解除</button>
+            <span class="relation-type" :class="{ 'relation-derived': r.derived }">{{ r.type_label }}{{ r.derived ? ' (自动)' : '' }}</span>
+            <template v-if="!r.derived">
+              <button class="btn btn-sm" @click="editRelation(r)">编辑</button>
+              <button class="btn btn-sm btn-danger" @click="removeRelation(r.relation_id)">解除</button>
+            </template>
           </div>
         </div>
       </div>
@@ -86,8 +89,35 @@
           </div>
         </div>
         <div class="form-group">
-          <label>生日</label>
+          <label>生日类型</label>
+          <div class="birthday-type-toggle">
+            <button type="button" class="type-btn" :class="{ active: editForm.birthday_type === 'solar' }" @click="editForm.birthday_type = 'solar'">☀️ 公历</button>
+            <button type="button" class="type-btn" :class="{ active: editForm.birthday_type === 'lunar' }" @click="editForm.birthday_type = 'lunar'">🌙 农历</button>
+          </div>
+        </div>
+        <div class="form-group" v-if="editForm.birthday_type === 'solar'">
+          <label>公历生日</label>
           <input v-model="editForm.birthday" type="date" />
+        </div>
+        <div class="form-row" v-if="editForm.birthday_type === 'lunar'">
+          <div class="form-group">
+            <label>农历月</label>
+            <select v-model="lunarMonth">
+              <option value="">请选择</option>
+              <option v-for="m in 12" :key="m" :value="m">{{ lunarMonthLabel(m) }}</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>农历日</label>
+            <select v-model="lunarDay">
+              <option value="">请选择</option>
+              <option v-for="d in 30" :key="d" :value="d">{{ lunarDayLabel(d) }}</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group" v-if="editForm.birthday_type === 'lunar'">
+          <label>出生年份（公历）</label>
+          <input v-model="birthYear" type="number" min="1900" max="2100" placeholder="如：1990" />
         </div>
         <div class="form-group">
           <label>电话</label>
@@ -127,12 +157,37 @@
         <div class="form-group">
           <label>关系类型</label>
           <select v-model="relationForm.type">
-            <option v-for="t in relationTypes" :key="t.value" :value="t.value">{{ t.label }}</option>
+            <option v-for="t in storedRelationTypes" :key="t.value" :value="t.value">{{ t.label }}</option>
           </select>
         </div>
+        <p class="form-hint">💡 兄弟姐妹、祖孙、姻亲等关系会根据父母/配偶关系自动推导</p>
         <div class="modal-actions">
           <button class="btn" @click="showRelationModal = false">取消</button>
           <button class="btn btn-primary" @click="addRelation">添加</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 编辑关系弹窗 -->
+    <div class="modal-overlay" v-if="showEditRelationModal" @click.self="showEditRelationModal = false">
+      <div class="modal">
+        <h3>编辑关系</h3>
+        <div class="form-group">
+          <label>关系人</label>
+          <select v-model="editRelationForm.related_id">
+            <option value="">请选择...</option>
+            <option v-for="p in otherPersons" :key="p.id" :value="p.id">{{ p.name }}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>关系类型</label>
+          <select v-model="editRelationForm.type">
+            <option v-for="t in storedRelationTypes" :key="t.value" :value="t.value">{{ t.label }}</option>
+          </select>
+        </div>
+        <div class="modal-actions">
+          <button class="btn" @click="showEditRelationModal = false">取消</button>
+          <button class="btn btn-primary" @click="saveEditRelation">保存</button>
         </div>
       </div>
     </div>
@@ -140,12 +195,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { personApi, relationApi } from '../api'
 
 const route = useRoute()
-const personId = route.params.id
+const personId = computed(() => route.params.id)
 
 const person = ref(null)
 const relations = ref([])
@@ -154,9 +209,24 @@ const relationTypes = ref([])
 const loading = ref(true)
 const showEditModal = ref(false)
 const showRelationModal = ref(false)
+const showEditRelationModal = ref(false)
+const editingRelationId = ref(null)
 
 const editForm = ref({})
 const relationForm = ref({ related_id: '', type: 'parent' })
+const editRelationForm = ref({ related_id: '', type: 'parent' })
+const lunarMonth = ref('')
+const lunarDay = ref('')
+const birthYear = ref('')
+
+const lunarMonthNames = ['正', '二', '三', '四', '五', '六', '七', '八', '九', '十', '冬', '腊']
+const lunarDayNames = [
+  '初一', '初二', '初三', '初四', '初五', '初六', '初七', '初八', '初九', '初十',
+  '十一', '十二', '十三', '十四', '十五', '十六', '十七', '十八', '十九', '二十',
+  '廿一', '廿二', '廿三', '廿四', '廿五', '廿六', '廿七', '廿八', '廿九', '三十',
+]
+const lunarMonthLabel = (m) => lunarMonthNames[m - 1] + '月'
+const lunarDayLabel = (d) => lunarDayNames[d - 1]
 
 const genderLabel = (g) => ({ male: '男', female: '女', unknown: '未知' }[g] || '未知')
 const genderClass = (g) => ({ male: 'tag-male', female: 'tag-female' }[g] || '')
@@ -165,23 +235,36 @@ const ageText = computed(() => {
   if (!person.value?.birthday) return ''
   const year = parseInt(person.value.birthday.substring(0, 4))
   if (!year) return ''
-  return `（${new Date().getFullYear() - year}岁）`
+  const age = new Date().getFullYear() - year
+  let label = `（${age}岁）`
+  if (person.value.birthday_type === 'lunar') label += ' 🌙农历'
+  return label
 })
 
+const storedRelationTypes = computed(() =>
+  relationTypes.value.filter(t => t.stored !== false)
+)
+
 const otherPersons = computed(() =>
-  allPersons.value.filter(p => p.id !== Number(personId))
+  allPersons.value.filter(p => p.id !== Number(personId.value))
 )
 
 const load = async () => {
   loading.value = true
   try {
     const [pRes, rRes, tRes] = await Promise.all([
-      personApi.get(personId),
-      relationApi.getByPerson(personId),
+      personApi.get(personId.value),
+      relationApi.getByPerson(personId.value),
       relationApi.types(),
     ])
     person.value = pRes.data
-    editForm.value = { ...pRes.data }
+    editForm.value = { ...pRes.data, birthday_type: pRes.data.birthday_type || 'solar' }
+    if (pRes.data.birthday_type === 'lunar' && pRes.data.birthday) {
+      const parts = pRes.data.birthday.split('-')
+      birthYear.value = parts[0]
+      lunarMonth.value = parseInt(parts[1])
+      lunarDay.value = parseInt(parts[2])
+    }
     relations.value = rRes.data
     relationTypes.value = tRes.data
 
@@ -195,7 +278,13 @@ const load = async () => {
 }
 
 const saveEdit = async () => {
-  await personApi.update(personId, editForm.value)
+  const data = { ...editForm.value }
+  if (data.birthday_type === 'lunar') {
+    if (!lunarMonth.value || !lunarDay.value) return alert('请选择农历月和日')
+    if (!birthYear.value) return alert('请输入出生年份')
+    data.birthday = `${birthYear.value}-${String(lunarMonth.value).padStart(2, '0')}-${String(lunarDay.value).padStart(2, '0')}`
+  }
+  await personApi.update(personId.value, data)
   showEditModal.value = false
   load()
 }
@@ -203,7 +292,7 @@ const saveEdit = async () => {
 const addRelation = async () => {
   if (!relationForm.value.related_id) return alert('请选择关系人')
   await relationApi.create({
-    person_id: Number(personId),
+    person_id: Number(personId.value),
     related_id: Number(relationForm.value.related_id),
     type: relationForm.value.type,
   })
@@ -218,7 +307,35 @@ const removeRelation = async (id) => {
   load()
 }
 
+const editRelation = (r) => {
+  editingRelationId.value = r.relation_id
+  editRelationForm.value = {
+    related_id: r.person_id,
+    type: r.type,
+  }
+  showEditRelationModal.value = true
+}
+
+const saveEditRelation = async () => {
+  if (!editRelationForm.value.related_id) return alert('请选择关系人')
+  await relationApi.update(editingRelationId.value, {
+    person_id: Number(personId.value),
+    related_id: Number(editRelationForm.value.related_id),
+    type: editRelationForm.value.type,
+  })
+  showEditRelationModal.value = false
+  editingRelationId.value = null
+  load()
+}
+
 onMounted(load)
+
+watch(personId, () => {
+  showEditModal.value = false
+  showRelationModal.value = false
+  showEditRelationModal.value = false
+  load()
+})
 </script>
 
 <style scoped>
@@ -331,6 +448,18 @@ onMounted(load)
   border-radius: 12px;
 }
 
+.form-hint {
+  font-size: 12px;
+  color: #999;
+  margin-top: -8px;
+  margin-bottom: 16px;
+}
+
+.relation-derived {
+  background: #f5f5f5;
+  color: #999;
+}
+
 @media (max-width: 768px) {
   .info-header {
     flex-wrap: wrap;
@@ -357,5 +486,28 @@ onMounted(load)
     flex-wrap: wrap;
     gap: 8px;
   }
+}
+
+.birthday-type-toggle {
+  display: flex;
+  gap: 8px;
+}
+
+.type-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: 2px solid #dcdfe6;
+  border-radius: 8px;
+  background: white;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.type-btn.active {
+  border-color: #667eea;
+  background: #f0f2ff;
+  color: #667eea;
+  font-weight: 600;
 }
 </style>

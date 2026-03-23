@@ -1,0 +1,6 @@
+node_modules/
+package-lock.json
+package.json
+family.db-shm
+family.db-wal
+family-tree
