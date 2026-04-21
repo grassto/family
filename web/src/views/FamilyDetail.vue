@@ -20,6 +20,9 @@
       <button class="tab" :class="{ active: viewMode === 'tree' }" @click="viewMode = 'tree'">
         🌳 族谱视图
       </button>
+      <button class="tab" :class="{ active: viewMode === 'pedigree' }" @click="viewMode = 'pedigree'">
+        系谱图
+      </button>
     </div>
 
     <div v-if="loading" class="empty">加载中...</div>
@@ -32,6 +35,11 @@
     <!-- 族谱视图 -->
     <div class="card tree-card" v-if="viewMode === 'tree' && persons.length > 0">
       <FamilyTree :persons="persons" :relations="allRelations" />
+    </div>
+
+    <!-- 系谱图 -->
+    <div class="card tree-card" v-if="viewMode === 'pedigree' && persons.length > 0">
+      <FamilyPedigree :persons="persons" :relations="allRelations" />
     </div>
 
     <!-- 列表视图 -->
@@ -182,6 +190,7 @@ import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { familyApi, personApi, relationApi } from '../api'
 import FamilyTree from '../components/FamilyTree.vue'
+import FamilyPedigree from '../components/FamilyPedigree.vue'
 
 const route = useRoute()
 const familyId = route.params.id
