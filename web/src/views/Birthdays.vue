@@ -24,8 +24,7 @@
             <router-link :to="`/persons/${p.id}`" class="name">{{ p.name }}</router-link>
             <div class="meta">
               <span v-if="p.age">{{ p.age }}岁</span>
-              <span v-if="p.birthday_type === 'lunar'" class="lunar-tag">🌙 农历{{ p.lunar_label }}</span>
-              <span v-if="p.birthday_type !== 'lunar'" class="solar-tag">☀️ 公历</span>
+              <span class="solar-tag">{{ p.birthday_type === 'lunar' ? '🌙 农历' : '☀️ 公历' }}</span>
             </div>
           </div>
         </div>
@@ -139,11 +138,6 @@ onMounted(load)
   display: flex;
   gap: 8px;
   align-items: center;
-}
-
-.lunar-tag {
-  color: #722ed1;
-  font-size: 12px;
 }
 
 .solar-tag {

@@ -1,16 +1,19 @@
 package handler
 
 import (
+	"database/sql"
 	"net/http"
 	"strconv"
 
 	"family-tree/model"
+	"family-tree/service"
 
 	"github.com/gin-gonic/gin"
 )
 
 type FamilyHandler struct {
-	Repo *model.FamilyRepo
+	Repo        *model.FamilyRepo
+	TransferSvc *service.FamilyTransferService
 }
 
 func (h *FamilyHandler) Register(r *gin.RouterGroup) {
@@ -19,6 +22,8 @@ func (h *FamilyHandler) Register(r *gin.RouterGroup) {
 	r.GET("/families/:id", h.Get)
 	r.PUT("/families/:id", h.Update)
 	r.DELETE("/families/:id", h.Delete)
+	r.GET("/families/:id/export", h.Export)
+	r.POST("/families/import", h.Import)
 }
 
 func (h *FamilyHandler) Create(c *gin.Context) {
@@ -76,4 +81,32 @@ func (h *FamilyHandler) Delete(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
+}
+
+func (h *FamilyHandler) Export(c *gin.Context) {
+	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	payload, err := h.TransferSvc.ExportFamily(id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "family not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, payload)
+}
+
+func (h *FamilyHandler) Import(c *gin.Context) {
+	var payload service.FamilyTransferPayload
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	family, err := h.TransferSvc.ImportFamily(payload)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, family)
 }

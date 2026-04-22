@@ -12,6 +12,7 @@ import (
 	"family-tree/handler"
 	"family-tree/model"
 	"family-tree/scheduler"
+	"family-tree/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -53,7 +54,10 @@ func main() {
 
 	api := r.Group("/api")
 	{
-		familyHandler := &handler.FamilyHandler{Repo: familyRepo}
+		familyHandler := &handler.FamilyHandler{
+			Repo:        familyRepo,
+			TransferSvc: &service.FamilyTransferService{DB: db},
+		}
 		personHandler := &handler.PersonHandler{Repo: personRepo}
 		relationHandler := &handler.RelationHandler{Repo: relationRepo}
 

@@ -2,7 +2,11 @@
   <div>
     <div class="page-header">
       <h2>家族管理</h2>
-      <button class="btn btn-primary" @click="showFamilyModal = true">+ 新建家族</button>
+      <div class="header-actions">
+        <button class="btn" @click="triggerImport">导入家族</button>
+        <button class="btn btn-primary" @click="showFamilyModal = true">+ 新建家族</button>
+        <input ref="importInput" type="file" accept="application/json,.json" class="hidden-input" @change="handleImportFile" />
+      </div>
     </div>
 
     <div v-if="loading" class="empty">加载中...</div>
@@ -16,6 +20,7 @@
         <div class="family-card-header">
           <h3 @click="$router.push(`/families/${f.id}`)">{{ f.name }}</h3>
           <div class="family-card-actions">
+            <button class="btn btn-sm btn-export" @click="exportFamily(f)">导出</button>
             <button class="btn btn-sm" @click="editFamily(f)">编辑</button>
             <button class="btn btn-sm btn-danger" @click="removeFamily(f)">删除</button>
           </div>
@@ -30,7 +35,9 @@
               {{ f.webhook_key ? '✅ 已配置提醒' : '⚠️ 未配置提醒' }}
             </span>
           </div>
-          <button class="btn btn-primary btn-sm" @click="openAddPerson(f)">+ 添加成员</button>
+          <div class="card-footer-actions">
+            <button class="btn btn-primary btn-sm" @click="openAddPerson(f)">+ 添加成员</button>
+          </div>
         </div>
       </div>
     </div>
@@ -80,36 +87,37 @@
             <input v-model.number="personForm.generation" type="number" min="1" placeholder="第几代" />
           </div>
         </div>
-        <div class="form-group">
-          <label>生日类型</label>
-          <div class="birthday-type-toggle">
-            <button type="button" class="type-btn" :class="{ active: personForm.birthday_type === 'solar' }" @click="personForm.birthday_type = 'solar'">☀️ 公历</button>
-            <button type="button" class="type-btn" :class="{ active: personForm.birthday_type === 'lunar' }" @click="personForm.birthday_type = 'lunar'">🌙 农历</button>
-          </div>
-        </div>
-        <div class="form-group" v-if="personForm.birthday_type === 'solar'">
-          <label>公历生日</label>
-          <input v-model="personForm.birthday" type="date" />
-        </div>
-        <div class="form-row" v-if="personForm.birthday_type === 'lunar'">
+        <div class="form-row">
           <div class="form-group">
-            <label>农历月</label>
-            <select v-model="lunarMonth">
-              <option value="">请选择</option>
-              <option v-for="m in 12" :key="m" :value="m">{{ lunarMonthLabel(m) }}</option>
+            <label>生日类型</label>
+            <select v-model="personForm.birthday_type">
+              <option value="solar">公历</option>
+              <option value="lunar">农历</option>
             </select>
           </div>
           <div class="form-group">
-            <label>农历日</label>
-            <select v-model="lunarDay">
-              <option value="">请选择</option>
-              <option v-for="d in 30" :key="d" :value="d">{{ lunarDayLabel(d) }}</option>
-            </select>
+            <label>生日（提醒用）</label>
+            <input
+              v-if="personForm.birthday_type === 'solar'"
+              v-model="personForm.birthday"
+              type="date"
+            />
+            <input
+              v-else
+              v-model="personForm.birthday"
+              placeholder="如 08-15（农历月-日）"
+            />
           </div>
         </div>
-        <div class="form-group" v-if="personForm.birthday_type === 'lunar' && personForm.birthday">
-          <label>出生年份（公历）</label>
-          <input v-model="birthYear" type="number" min="1900" max="2100" placeholder="如：1990" />
+        <div class="form-row">
+          <div class="form-group">
+            <label>出生日期（公历）</label>
+            <input v-model="personForm.birth_date" type="date" />
+          </div>
+          <div class="form-group">
+            <label>死亡日期（公历）</label>
+            <input v-model="personForm.death_date" type="date" />
+          </div>
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -146,6 +154,7 @@ import { familyApi, personApi } from '../api'
 
 const families = ref([])
 const loading = ref(true)
+const importInput = ref(null)
 
 // 家族相关
 const showFamilyModal = ref(false)
@@ -156,22 +165,9 @@ const familyForm = ref({ name: '', description: '', webhook_key: '' })
 const showPersonModal = ref(false)
 const targetFamily = ref(null)
 const personForm = ref({
-  name: '', gender: 'unknown', birthday: '', birthday_type: 'solar', generation: null,
+  name: '', gender: 'unknown', birthday: '', birthday_type: 'solar', birth_date: '', death_date: '', generation: null,
   phone: '', address: '', notes: '', is_alive: true,
 })
-const lunarMonth = ref('')
-const lunarDay = ref('')
-const birthYear = ref('')
-
-const lunarMonthNames = ['正', '二', '三', '四', '五', '六', '七', '八', '九', '十', '冬', '腊']
-const lunarDayNames = [
-  '初一', '初二', '初三', '初四', '初五', '初六', '初七', '初八', '初九', '初十',
-  '十一', '十二', '十三', '十四', '十五', '十六', '十七', '十八', '十九', '二十',
-  '廿一', '廿二', '廿三', '廿四', '廿五', '廿六', '廿七', '廿八', '廿九', '三十',
-]
-
-const lunarMonthLabel = (m) => lunarMonthNames[m - 1] + '月'
-const lunarDayLabel = (d) => lunarDayNames[d - 1]
 
 const load = async () => {
   loading.value = true
@@ -213,16 +209,47 @@ const removeFamily = async (f) => {
   load()
 }
 
+const exportFamily = async (family) => {
+  const { data } = await familyApi.exportOne(family.id)
+  const json = JSON.stringify(data, null, 2)
+  const blob = new Blob([json], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  const safeName = (family.name || `family-${family.id}`).replace(/[\\/:*?"<>|]/g, '_')
+  link.href = url
+  link.download = `${safeName}.json`
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
+const triggerImport = () => {
+  importInput.value?.click()
+}
+
+const handleImportFile = async (event) => {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  try {
+    const text = await file.text()
+    const payload = JSON.parse(text)
+    await familyApi.import(payload)
+    alert('导入成功，已创建新家族')
+    load()
+  } catch (error) {
+    alert(error?.response?.data?.error || '导入失败，请检查 JSON 文件')
+  }
+}
+
 // --- 成员操作 ---
 const openAddPerson = (f) => {
   targetFamily.value = f
   personForm.value = {
-    name: '', gender: 'unknown', birthday: '', birthday_type: 'solar', generation: null,
+    name: '', gender: 'unknown', birthday: '', birthday_type: 'solar', birth_date: '', death_date: '', generation: null,
     phone: '', address: '', notes: '', is_alive: true,
   }
-  lunarMonth.value = ''
-  lunarDay.value = ''
-  birthYear.value = ''
   showPersonModal.value = true
 }
 
@@ -233,13 +260,14 @@ const closePersonModal = () => {
 
 const submitPerson = async () => {
   if (!personForm.value.name.trim()) return alert('请输入姓名')
-  const data = { ...personForm.value, family_id: targetFamily.value.id }
-  if (data.birthday_type === 'lunar') {
-    if (!lunarMonth.value || !lunarDay.value) return alert('请选择农历月和日')
-    if (!birthYear.value) return alert('请输入出生年份')
-    data.birthday = `${birthYear.value}-${String(lunarMonth.value).padStart(2, '0')}-${String(lunarDay.value).padStart(2, '0')}`
+  const payload = {
+    ...personForm.value,
+    family_id: targetFamily.value.id,
   }
-  await personApi.create(data)
+  if (payload.is_alive) {
+    payload.death_date = ''
+  }
+  await personApi.create(payload)
   closePersonModal()
   load()
 }
@@ -257,6 +285,12 @@ onMounted(load)
 
 .page-header h2 {
   font-size: 22px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .grid {
@@ -296,6 +330,17 @@ onMounted(load)
   gap: 6px;
 }
 
+.btn-export {
+  background: #eef3ff;
+  color: #4c63d2;
+  border: 1px solid #cdd8ff;
+}
+
+.btn-export:hover {
+  background: #dfe8ff;
+  border-color: #aebfff;
+}
+
 .desc {
   color: #888;
   font-size: 13px;
@@ -306,6 +351,12 @@ onMounted(load)
 .family-card-footer {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+}
+
+.card-footer-actions {
+  display: flex;
+  gap: 8px;
   align-items: center;
 }
 
@@ -354,27 +405,8 @@ onMounted(load)
   margin: 0;
 }
 
-.birthday-type-toggle {
-  display: flex;
-  gap: 8px;
-}
-
-.type-btn {
-  flex: 1;
-  padding: 8px 12px;
-  border: 2px solid #dcdfe6;
-  border-radius: 8px;
-  background: white;
-  font-size: 14px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.type-btn.active {
-  border-color: #667eea;
-  background: #f0f2ff;
-  color: #667eea;
-  font-weight: 600;
+.hidden-input {
+  display: none;
 }
 
 @media (max-width: 768px) {
@@ -382,6 +414,10 @@ onMounted(load)
     flex-direction: column;
     align-items: stretch;
     gap: 12px;
+  }
+
+  .header-actions {
+    width: 100%;
   }
 
   .grid {

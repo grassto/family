@@ -38,12 +38,9 @@ func Seed(db *sql.DB) error {
 	}
 
 	insPerson := func(fid int64, name, gender, birthday string, gen int, phone, addr, notes *string, alive int, birthdayType string) (int64, error) {
-		if birthdayType == "" {
-			birthdayType = "solar"
-		}
 		r, err := tx.Exec(
-			`INSERT INTO person (family_id, name, gender, birthday, birthday_type, generation, phone, address, notes, is_alive) VALUES (?,?,?,?,?,?,?,?,?,?)`,
-			fid, name, gender, birthday, birthdayType, gen, ns(phone), ns(addr), ns(notes), alive,
+			`INSERT INTO person (family_id, name, gender, birthday, generation, phone, address, notes, is_alive) VALUES (?,?,?,?,?,?,?,?,?)`,
+			fid, name, gender, birthday, gen, ns(phone), ns(addr), ns(notes), alive,
 		)
 		if err != nil {
 			return 0, err

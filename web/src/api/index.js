@@ -12,6 +12,8 @@ export const familyApi = {
   create: (data) => api.post('/families', data),
   update: (id, data) => api.put(`/families/${id}`, data),
   remove: (id) => api.delete(`/families/${id}`),
+  exportOne: (id) => api.get(`/families/${id}/export`),
+  import: (data) => api.post('/families/import', data),
 }
 
 // Person

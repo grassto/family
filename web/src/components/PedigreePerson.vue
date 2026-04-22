@@ -18,7 +18,7 @@ const props = defineProps({
 })
 
 const birthYearText = computed(() => {
-  const b = props.person.birthday
+  const b = props.person.birth_date || props.person.birthday
   if (!b || b.length < 4) return ''
   const y = parseInt(b.slice(0, 4), 10)
   if (!y) return ''
