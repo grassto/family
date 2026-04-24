@@ -15,7 +15,9 @@ type Person struct {
 	Name         string `json:"name"`
 	Gender       string `json:"gender"`
 	Birthday     string `json:"birthday,omitempty"`
-	BirthdayType string `json:"birthday_type"`
+	BirthdayType string `json:"birthday_type,omitempty"`
+	BirthDate    string `json:"birth_date,omitempty"`
+	DeathDate    string `json:"death_date,omitempty"`
 	Generation   *int   `json:"generation,omitempty"`
 	PhotoURL     string `json:"photo_url,omitempty"`
 	Phone        string `json:"phone,omitempty"`
@@ -32,6 +34,8 @@ type PersonCreateReq struct {
 	Gender       string `json:"gender"`
 	Birthday     string `json:"birthday"`
 	BirthdayType string `json:"birthday_type"`
+	BirthDate    string `json:"birth_date"`
+	DeathDate    string `json:"death_date"`
 	Generation   *int   `json:"generation"`
 	PhotoURL     string `json:"photo_url"`
 	Phone        string `json:"phone"`
@@ -44,6 +48,8 @@ type PersonUpdateReq struct {
 	Gender       *string `json:"gender"`
 	Birthday     *string `json:"birthday"`
 	BirthdayType *string `json:"birthday_type"`
+	BirthDate    *string `json:"birth_date"`
+	DeathDate    *string `json:"death_date"`
 	Generation   *int    `json:"generation"`
 	PhotoURL     *string `json:"photo_url"`
 	Phone        *string `json:"phone"`
@@ -57,21 +63,24 @@ type PersonRepo struct {
 }
 
 const personSelectCols = `id, family_id, name, gender, COALESCE(birthday,''), COALESCE(birthday_type,'solar'),
+       COALESCE(birth_date,''), COALESCE(death_date,''),
        generation, COALESCE(photo_url,''), COALESCE(phone,''), COALESCE(address,''), COALESCE(notes,''),
        is_alive, created_at, updated_at`
 
 func scanPerson(p *Person, scanner interface {
 	Scan(dest ...interface{}) error
-}, gen *sql.NullInt64, birthday, birthdayType, photoURL, phone, address, notes *sql.NullString) error {
+}, gen *sql.NullInt64, birthday, birthdayType, birthDate, deathDate, photoURL, phone, address, notes *sql.NullString) error {
 	return scanner.Scan(
-		&p.ID, &p.FamilyID, &p.Name, &p.Gender, birthday, birthdayType, gen,
+		&p.ID, &p.FamilyID, &p.Name, &p.Gender, birthday, birthdayType, birthDate, deathDate, gen,
 		photoURL, phone, address, notes, &p.IsAlive, &p.CreatedAt, &p.UpdatedAt,
 	)
 }
 
-func assignPersonFields(p *Person, birthday, birthdayType, photoURL, phone, address, notes *sql.NullString, gen *sql.NullInt64) {
+func assignPersonFields(p *Person, birthday, birthdayType, birthDate, deathDate, photoURL, phone, address, notes *sql.NullString, gen *sql.NullInt64) {
 	p.Birthday = birthday.String
 	p.BirthdayType = birthdayType.String
+	p.BirthDate = birthDate.String
+	p.DeathDate = deathDate.String
 	p.PhotoURL = photoURL.String
 	p.Phone = phone.String
 	p.Address = address.String
@@ -87,14 +96,14 @@ func (r *PersonRepo) Create(req PersonCreateReq) (*Person, error) {
 	if gender == "" {
 		gender = "unknown"
 	}
-	bt := req.BirthdayType
-	if bt == "" {
-		bt = "solar"
+	birthdayType := req.BirthdayType
+	if birthdayType == "" {
+		birthdayType = "solar"
 	}
 	res, err := r.DB.Exec(
-		`INSERT INTO person (family_id, name, gender, birthday, birthday_type, generation, photo_url, phone, address, notes)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		req.FamilyID, req.Name, gender, req.Birthday, bt, req.Generation, req.PhotoURL, req.Phone, req.Address, req.Notes,
+		`INSERT INTO person (family_id, name, gender, birthday, birthday_type, birth_date, death_date, generation, photo_url, phone, address, notes)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		req.FamilyID, req.Name, gender, req.Birthday, birthdayType, req.BirthDate, req.DeathDate, req.Generation, req.PhotoURL, req.Phone, req.Address, req.Notes,
 	)
 	if err != nil {
 		return nil, err
@@ -106,15 +115,15 @@ func (r *PersonRepo) Create(req PersonCreateReq) (*Person, error) {
 func (r *PersonRepo) GetByID(id int64) (*Person, error) {
 	p := &Person{}
 	var gen sql.NullInt64
-	var birthday, birthdayType, photoURL, phone, address, notes sql.NullString
+	var birthday, birthdayType, birthDate, deathDate, photoURL, phone, address, notes sql.NullString
 	err := r.DB.QueryRow(
 		"SELECT "+personSelectCols+" FROM person WHERE id = ?", id,
-	).Scan(&p.ID, &p.FamilyID, &p.Name, &p.Gender, &birthday, &birthdayType, &gen,
+	).Scan(&p.ID, &p.FamilyID, &p.Name, &p.Gender, &birthday, &birthdayType, &birthDate, &deathDate, &gen,
 		&photoURL, &phone, &address, &notes, &p.IsAlive, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
-	assignPersonFields(p, &birthday, &birthdayType, &photoURL, &phone, &address, &notes, &gen)
+	assignPersonFields(p, &birthday, &birthdayType, &birthDate, &deathDate, &photoURL, &phone, &address, &notes, &gen)
 	return p, nil
 }
 
@@ -138,12 +147,12 @@ func (r *PersonRepo) ListByFamily(familyID int64, keyword string) ([]Person, err
 	for rows.Next() {
 		var p Person
 		var gen sql.NullInt64
-		var birthday, birthdayType, photoURL, phone, address, notes sql.NullString
-		if err := rows.Scan(&p.ID, &p.FamilyID, &p.Name, &p.Gender, &birthday, &birthdayType, &gen,
+		var birthday, birthdayType, birthDate, deathDate, photoURL, phone, address, notes sql.NullString
+		if err := rows.Scan(&p.ID, &p.FamilyID, &p.Name, &p.Gender, &birthday, &birthdayType, &birthDate, &deathDate, &gen,
 			&photoURL, &phone, &address, &notes, &p.IsAlive, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			return nil, err
 		}
-		assignPersonFields(&p, &birthday, &birthdayType, &photoURL, &phone, &address, &notes, &gen)
+		assignPersonFields(&p, &birthday, &birthdayType, &birthDate, &deathDate, &photoURL, &phone, &address, &notes, &gen)
 		persons = append(persons, p)
 	}
 	if persons == nil {
@@ -171,6 +180,14 @@ func (r *PersonRepo) Update(id int64, req PersonUpdateReq) (*Person, error) {
 	if req.BirthdayType != nil {
 		sets = append(sets, "birthday_type = ?")
 		args = append(args, *req.BirthdayType)
+	}
+	if req.BirthDate != nil {
+		sets = append(sets, "birth_date = ?")
+		args = append(args, *req.BirthDate)
+	}
+	if req.DeathDate != nil {
+		sets = append(sets, "death_date = ?")
+		args = append(args, *req.DeathDate)
 	}
 	if req.Generation != nil {
 		sets = append(sets, "generation = ?")
@@ -213,7 +230,7 @@ func (r *PersonRepo) Delete(id int64) error {
 	return err
 }
 
-// GetAllAlive returns all alive persons with birthdays (both solar and lunar).
+// GetAllAlive returns all alive persons with birthdays.
 func (r *PersonRepo) GetAllAlive() ([]Person, error) {
 	query := "SELECT " + personSelectCols + " FROM person WHERE is_alive = 1 AND birthday IS NOT NULL AND birthday != ''"
 	rows, err := r.DB.Query(query)
@@ -226,12 +243,12 @@ func (r *PersonRepo) GetAllAlive() ([]Person, error) {
 	for rows.Next() {
 		var p Person
 		var gen sql.NullInt64
-		var birthday, birthdayType, photoURL, phone, address, notes sql.NullString
-		if err := rows.Scan(&p.ID, &p.FamilyID, &p.Name, &p.Gender, &birthday, &birthdayType, &gen,
+		var birthday, birthdayType, birthDate, deathDate, photoURL, phone, address, notes sql.NullString
+		if err := rows.Scan(&p.ID, &p.FamilyID, &p.Name, &p.Gender, &birthday, &birthdayType, &birthDate, &deathDate, &gen,
 			&photoURL, &phone, &address, &notes, &p.IsAlive, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			return nil, err
 		}
-		assignPersonFields(&p, &birthday, &birthdayType, &photoURL, &phone, &address, &notes, &gen)
+		assignPersonFields(&p, &birthday, &birthdayType, &birthDate, &deathDate, &photoURL, &phone, &address, &notes, &gen)
 		persons = append(persons, p)
 	}
 	if persons == nil {
@@ -257,7 +274,6 @@ type BirthdayPerson struct {
 	NextBirthday string `json:"next_birthday"` // actual solar date "YYYY-MM-DD"
 	IsToday      bool   `json:"is_today"`
 	Age          int    `json:"age"`
-	LunarLabel   string `json:"lunar_label,omitempty"` // e.g. "六月十五" for lunar birthdays
 }
 
 // GetBirthdayUpcoming returns persons whose next birthday (solar) falls within `days` from today.
@@ -302,27 +318,21 @@ func filterBirthdayUpcoming(persons []Person, days int) []BirthdayPerson {
 		}
 
 		var nextSolar time.Time
-		var lunarLabel string
-
+		m, d, err := parseBirthdayMonthDay(p.Birthday)
+		if err != nil {
+			continue
+		}
 		if p.BirthdayType == "lunar" {
-			month, day, err := lunar.ParseLunarBirthday(p.Birthday)
-			if err != nil {
-				continue
-			}
-			nextSolar = lunar.GetNextSolarBirthday(month, day, false, today)
-			ld := &lunar.LunarDate{Year: now.Year(), Month: month, Day: day}
-			lunarLabel = ld.Format()
+			nextSolar = lunar.GetNextSolarBirthday(m, d, false, today)
 		} else {
-			// Solar birthday: parse MM-DD and find next occurrence
-			var m, d int
-			if _, err := fmt.Sscanf(p.Birthday[5:], "%d-%d", &m, &d); err != nil {
-				continue
-			}
 			candidate := time.Date(now.Year(), time.Month(m), d, 0, 0, 0, 0, now.Location())
 			if candidate.Before(today) {
 				candidate = time.Date(now.Year()+1, time.Month(m), d, 0, 0, 0, 0, now.Location())
 			}
 			nextSolar = candidate
+		}
+		if nextSolar.IsZero() {
+			continue
 		}
 
 		// Check if within range
@@ -331,8 +341,10 @@ func filterBirthdayUpcoming(persons []Person, days int) []BirthdayPerson {
 		}
 
 		isToday := nextSolar.Equal(today)
-		birthYear := 0
-		fmt.Sscanf(p.Birthday[:4], "%d", &birthYear)
+		birthYear := parseBirthYear(p.BirthDate)
+		if birthYear == 0 {
+			birthYear = parseBirthYear(p.Birthday)
+		}
 		age := 0
 		if birthYear > 0 {
 			age = nextSolar.Year() - birthYear
@@ -343,7 +355,6 @@ func filterBirthdayUpcoming(persons []Person, days int) []BirthdayPerson {
 			NextBirthday: nextSolar.Format("2006-01-02"),
 			IsToday:      isToday,
 			Age:          age,
-			LunarLabel:   lunarLabel,
 		})
 	}
 
@@ -352,4 +363,23 @@ func filterBirthdayUpcoming(persons []Person, days int) []BirthdayPerson {
 	})
 
 	return results
+}
+
+func parseBirthdayMonthDay(birthday string) (int, int, error) {
+	var y, m, d int
+	if _, err := fmt.Sscanf(birthday, "%d-%d-%d", &y, &m, &d); err == nil {
+		return m, d, nil
+	}
+	if _, err := fmt.Sscanf(birthday, "%d-%d", &m, &d); err == nil {
+		return m, d, nil
+	}
+	return 0, 0, fmt.Errorf("invalid birthday format: %s", birthday)
+}
+
+func parseBirthYear(dateStr string) int {
+	var y int
+	if _, err := fmt.Sscanf(dateStr, "%d-", &y); err != nil {
+		return 0
+	}
+	return y
 }

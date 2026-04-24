@@ -19,8 +19,9 @@ const props = defineProps({
 })
 
 const age = computed(() => {
-  if (!props.person.birthday) return null
-  const year = parseInt(props.person.birthday.substring(0, 4))
+  const source = props.person.birth_date || props.person.birthday
+  if (!source) return null
+  const year = parseInt(source.substring(0, 4))
   if (!year) return null
   return new Date().getFullYear() - year
 })

@@ -54,6 +54,8 @@ func migrate(db *sql.DB) {
 			gender      TEXT CHECK(gender IN ('male','female','unknown')) DEFAULT 'unknown',
 			birthday    TEXT,
 			birthday_type TEXT CHECK(birthday_type IN ('solar','lunar')) DEFAULT 'solar',
+			birth_date  TEXT,
+			death_date  TEXT,
 			generation  INTEGER,
 			photo_url   TEXT,
 			phone       TEXT,
@@ -68,7 +70,7 @@ func migrate(db *sql.DB) {
 			id          INTEGER PRIMARY KEY AUTOINCREMENT,
 			person_id   INTEGER NOT NULL,
 			related_id  INTEGER NOT NULL,
-			type        TEXT NOT NULL CHECK(type IN ('parent','child','spouse','sibling')),
+			type        TEXT NOT NULL CHECK(type IN ('parent','child','spouse')),
 			created_at  DATETIME DEFAULT (datetime('now','localtime')),
 			FOREIGN KEY (person_id) REFERENCES person(id) ON DELETE CASCADE,
 			FOREIGN KEY (related_id) REFERENCES person(id) ON DELETE CASCADE,
@@ -86,11 +88,55 @@ func migrate(db *sql.DB) {
 		}
 	}
 
-	if !hasColumn(db, "person", "birthday_type") {
-		if _, err := db.Exec(`ALTER TABLE person ADD COLUMN birthday_type TEXT CHECK(birthday_type IN ('solar','lunar')) DEFAULT 'solar'`); err != nil {
-			log.Fatalf("migration failed: %v", err)
-		}
-	}
+	// if hasColumn(db, "person", "birthday_type") {
+	// 	tx, err := db.Begin()
+	// 	if err != nil {
+	// 		log.Fatalf("migration failed: %v", err)
+	// 	}
+	// 	defer tx.Rollback()
+
+	// 	if _, err := tx.Exec(`CREATE TABLE person_new (
+	// 		id          INTEGER PRIMARY KEY AUTOINCREMENT,
+	// 		family_id   INTEGER NOT NULL,
+	// 		name        TEXT NOT NULL,
+	// 		gender      TEXT CHECK(gender IN ('male','female','unknown')) DEFAULT 'unknown',
+	// 		birthday    TEXT,
+	// 		generation  INTEGER,
+	// 		photo_url   TEXT,
+	// 		phone       TEXT,
+	// 		address     TEXT,
+	// 		notes       TEXT,
+	// 		is_alive    INTEGER DEFAULT 1,
+	// 		created_at  DATETIME DEFAULT (datetime('now','localtime')),
+	// 		updated_at  DATETIME DEFAULT (datetime('now','localtime')),
+	// 		FOREIGN KEY (family_id) REFERENCES family(id) ON DELETE CASCADE
+	// 	)`); err != nil {
+	// 		log.Fatalf("migration failed: %v", err)
+	// 	}
+
+	// 	if _, err := tx.Exec(`INSERT INTO person_new (id, family_id, name, gender, birthday, generation, photo_url, phone, address, notes, is_alive, created_at, updated_at)
+	// 		SELECT id, family_id, name, gender, birthday, generation, photo_url, phone, address, notes, is_alive, created_at, updated_at
+	// 		FROM person`); err != nil {
+	// 		log.Fatalf("migration failed: %v", err)
+	// 	}
+
+	// 	if _, err := tx.Exec(`DROP TABLE person`); err != nil {
+	// 		log.Fatalf("migration failed: %v", err)
+	// 	}
+	// 	if _, err := tx.Exec(`ALTER TABLE person_new RENAME TO person`); err != nil {
+	// 		log.Fatalf("migration failed: %v", err)
+	// 	}
+	// 	if _, err := tx.Exec(`CREATE INDEX IF NOT EXISTS idx_person_family ON person(family_id)`); err != nil {
+	// 		log.Fatalf("migration failed: %v", err)
+	// 	}
+	// 	if _, err := tx.Exec(`CREATE INDEX IF NOT EXISTS idx_person_birthday ON person(birthday)`); err != nil {
+	// 		log.Fatalf("migration failed: %v", err)
+	// 	}
+
+	// 	if err := tx.Commit(); err != nil {
+	// 		log.Fatalf("migration failed: %v", err)
+	// 	}
+	// }
 
 	log.Println("database migration complete")
 }

@@ -83,11 +83,7 @@ func (s *BirthdayScheduler) checkAndNotify() {
 			if p.Age > 0 {
 				age = fmt.Sprintf("（%d岁）", p.Age)
 			}
-			typeLabel := ""
-			if p.BirthdayType == "lunar" {
-				typeLabel = fmt.Sprintf(" 🌙农历%s", p.LunarLabel)
-			}
-			content += fmt.Sprintf("> %s %s%s\n", p.Name, age, typeLabel)
+			content += fmt.Sprintf("> %s %s\n", p.Name, age)
 		}
 		content += "\n记得送上祝福！🎉"
 

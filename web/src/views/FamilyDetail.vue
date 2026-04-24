@@ -20,6 +20,9 @@
       <button class="tab" :class="{ active: viewMode === 'tree' }" @click="viewMode = 'tree'">
         🌳 族谱视图
       </button>
+      <button class="tab" :class="{ active: viewMode === 'pedigree' }" @click="viewMode = 'pedigree'">
+        系谱图
+      </button>
     </div>
 
     <div v-if="loading" class="empty">加载中...</div>
@@ -34,6 +37,11 @@
       <FamilyTree :persons="persons" :relations="allRelations" />
     </div>
 
+    <!-- 系谱图 -->
+    <div class="card tree-card" v-if="viewMode === 'pedigree' && persons.length > 0">
+      <FamilyPedigree :persons="persons" :relations="allRelations" />
+    </div>
+
     <!-- 列表视图 -->
     <template v-if="viewMode === 'list' && persons.length > 0">
       <!-- 桌面端表格 -->
@@ -44,6 +52,8 @@
               <th>姓名</th>
               <th>性别</th>
               <th>生日</th>
+              <th>出生日期</th>
+              <th>死亡日期</th>
               <th>辈分</th>
               <th>状态</th>
               <th>操作</th>
@@ -57,7 +67,9 @@
               <td>
                 <span class="tag" :class="genderClass(p.gender)">{{ genderLabel(p.gender) }}</span>
               </td>
-              <td>{{ p.birthday || '-' }}</td>
+              <td>{{ p.birthday || '-' }}<span v-if="p.birthday_type === 'lunar'">（农历）</span></td>
+              <td>{{ p.birth_date || '-' }}</td>
+              <td>{{ p.death_date || '-' }}</td>
               <td>{{ p.generation ? `第${p.generation}代` : '-' }}</td>
               <td>
                 <span class="tag" :class="p.is_alive ? 'tag-alive' : 'tag-dead'">
@@ -85,7 +97,11 @@
               </span>
               <span class="tag" v-if="p.generation">第{{ p.generation }}代</span>
             </div>
-            <div class="person-card-meta" v-if="p.birthday">🎂 {{ p.birthday }}</div>
+            <div class="person-card-meta" v-if="p.birthday">
+              🎂 {{ p.birthday }} {{ p.birthday_type === 'lunar' ? '(农历)' : '(公历)' }}
+            </div>
+            <div class="person-card-meta" v-if="p.birth_date">🍼 出生 {{ p.birth_date }}</div>
+            <div class="person-card-meta" v-if="p.death_date">🕯️ 逝世 {{ p.death_date }}</div>
           </div>
           <div class="person-card-actions">
             <button class="btn btn-sm" @click="editPerson(p)">编辑</button>
@@ -103,6 +119,27 @@
           <label>姓名 *</label>
           <input v-model="personForm.name" placeholder="成员姓名" />
         </div>
+        <div class="form-group relation-quick-add" v-if="!editingPersonId && relationCandidates.length > 0">
+          <label class="checkbox-label">
+            <input type="checkbox" v-model="createRelationEnabled" />
+            <span>添加后立即建立关系</span>
+          </label>
+          <div class="form-row" v-if="createRelationEnabled">
+            <div class="form-group">
+              <label>关系人</label>
+              <select v-model="createRelationPersonId">
+                <option value="">请选择...</option>
+                <option v-for="p in relationCandidates" :key="p.id" :value="p.id">{{ p.name }}</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>关系类型</label>
+              <select v-model="createRelationType">
+                <option v-for="t in storedRelationTypes" :key="t.value" :value="t.value">{{ t.label }}</option>
+              </select>
+            </div>
+          </div>
+        </div>
         <div class="form-row">
           <div class="form-group">
             <label>性别</label>
@@ -117,36 +154,37 @@
             <input v-model.number="personForm.generation" type="number" min="1" placeholder="第几代" />
           </div>
         </div>
-        <div class="form-group">
-          <label>生日类型</label>
-          <div class="birthday-type-toggle">
-            <button type="button" class="type-btn" :class="{ active: personForm.birthday_type === 'solar' }" @click="personForm.birthday_type = 'solar'">☀️ 公历</button>
-            <button type="button" class="type-btn" :class="{ active: personForm.birthday_type === 'lunar' }" @click="personForm.birthday_type = 'lunar'">🌙 农历</button>
-          </div>
-        </div>
-        <div class="form-group" v-if="personForm.birthday_type === 'solar'">
-          <label>公历生日</label>
-          <input v-model="personForm.birthday" type="date" />
-        </div>
-        <div class="form-row" v-if="personForm.birthday_type === 'lunar'">
+        <div class="form-row">
           <div class="form-group">
-            <label>农历月</label>
-            <select v-model="lunarMonth">
-              <option value="">请选择</option>
-              <option v-for="m in 12" :key="m" :value="m">{{ lunarMonthLabel(m) }}</option>
+            <label>生日类型</label>
+            <select v-model="personForm.birthday_type">
+              <option value="solar">公历</option>
+              <option value="lunar">农历</option>
             </select>
           </div>
           <div class="form-group">
-            <label>农历日</label>
-            <select v-model="lunarDay">
-              <option value="">请选择</option>
-              <option v-for="d in 30" :key="d" :value="d">{{ lunarDayLabel(d) }}</option>
-            </select>
+            <label>生日（提醒用）</label>
+            <input
+              v-if="personForm.birthday_type === 'solar'"
+              v-model="personForm.birthday"
+              type="date"
+            />
+            <input
+              v-else
+              v-model="personForm.birthday"
+              placeholder="如 08-15（农历月-日）"
+            />
           </div>
         </div>
-        <div class="form-group" v-if="personForm.birthday_type === 'lunar' && personForm.birthday">
-          <label>出生年份（公历）</label>
-          <input v-model="birthYear" type="number" min="1900" max="2100" placeholder="如：1990" />
+        <div class="form-row">
+          <div class="form-group">
+            <label>出生日期（公历）</label>
+            <input v-model="personForm.birth_date" type="date" />
+          </div>
+          <div class="form-group">
+            <label>死亡日期（公历）</label>
+            <input v-model="personForm.death_date" type="date" />
+          </div>
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -178,10 +216,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { familyApi, personApi, relationApi } from '../api'
 import FamilyTree from '../components/FamilyTree.vue'
+import FamilyPedigree from '../components/FamilyPedigree.vue'
 
 const route = useRoute()
 const familyId = route.params.id
@@ -194,26 +233,22 @@ const keyword = ref('')
 const showPersonModal = ref(false)
 const editingPersonId = ref(null)
 const viewMode = ref('list')
+const relationTypes = ref([])
+const createRelationEnabled = ref(false)
+const createRelationPersonId = ref('')
+const createRelationType = ref('parent')
 
 const personForm = ref({
-  name: '', gender: 'unknown', birthday: '', birthday_type: 'solar', generation: null,
+  name: '', gender: 'unknown', birthday: '', birthday_type: 'solar', birth_date: '', death_date: '', generation: null,
   phone: '', address: '', notes: '', is_alive: true,
 })
-const lunarMonth = ref('')
-const lunarDay = ref('')
-const birthYear = ref('')
-
-const lunarMonthNames = ['正', '二', '三', '四', '五', '六', '七', '八', '九', '十', '冬', '腊']
-const lunarDayNames = [
-  '初一', '初二', '初三', '初四', '初五', '初六', '初七', '初八', '初九', '初十',
-  '十一', '十二', '十三', '十四', '十五', '十六', '十七', '十八', '十九', '二十',
-  '廿一', '廿二', '廿三', '廿四', '廿五', '廿六', '廿七', '廿八', '廿九', '三十',
-]
-const lunarMonthLabel = (m) => lunarMonthNames[m - 1] + '月'
-const lunarDayLabel = (d) => lunarDayNames[d - 1]
 
 const genderLabel = (g) => ({ male: '男', female: '女', unknown: '未知' }[g] || '未知')
 const genderClass = (g) => ({ male: 'tag-male', female: 'tag-female' }[g] || '')
+const storedRelationTypes = computed(() => relationTypes.value.filter(t => t.stored !== false))
+const relationCandidates = computed(() =>
+  persons.value.filter(p => p.id !== Number(editingPersonId.value))
+)
 
 const loadFamily = async () => {
   const { data } = await familyApi.get(familyId)
@@ -230,10 +265,15 @@ const loadRelations = async () => {
   allRelations.value = data
 }
 
+const loadRelationTypes = async () => {
+  const { data } = await relationApi.types()
+  relationTypes.value = data
+}
+
 const load = async () => {
   loading.value = true
   try {
-    await Promise.all([loadFamily(), loadPersons(), loadRelations()])
+    await Promise.all([loadFamily(), loadPersons(), loadRelations(), loadRelationTypes()])
   } finally {
     loading.value = false
   }
@@ -242,32 +282,22 @@ const load = async () => {
 const openAddPerson = () => {
   editingPersonId.value = null
   personForm.value = {
-    name: '', gender: 'unknown', birthday: '', birthday_type: 'solar', generation: null,
+    name: '', gender: 'unknown', birthday: '', birthday_type: 'solar', birth_date: '', death_date: '', generation: null,
     phone: '', address: '', notes: '', is_alive: true,
   }
-  lunarMonth.value = ''
-  lunarDay.value = ''
-  birthYear.value = ''
+  createRelationEnabled.value = false
+  createRelationPersonId.value = ''
+  createRelationType.value = 'parent'
   showPersonModal.value = true
 }
 
 const editPerson = (p) => {
   editingPersonId.value = p.id
   personForm.value = {
-    name: p.name, gender: p.gender, birthday: p.birthday,
-    birthday_type: p.birthday_type || 'solar',
+    name: p.name, gender: p.gender, birthday: p.birthday, birthday_type: p.birthday_type || 'solar',
+    birth_date: p.birth_date || '', death_date: p.death_date || '',
     generation: p.generation, phone: p.phone, address: p.address, notes: p.notes,
     is_alive: p.is_alive,
-  }
-  if (p.birthday_type === 'lunar' && p.birthday) {
-    const parts = p.birthday.split('-')
-    birthYear.value = parts[0]
-    lunarMonth.value = parseInt(parts[1])
-    lunarDay.value = parseInt(parts[2])
-  } else {
-    lunarMonth.value = ''
-    lunarDay.value = ''
-    birthYear.value = ''
   }
   showPersonModal.value = true
 }
@@ -275,20 +305,31 @@ const editPerson = (p) => {
 const closePersonModal = () => {
   showPersonModal.value = false
   editingPersonId.value = null
+  createRelationEnabled.value = false
+  createRelationPersonId.value = ''
+  createRelationType.value = 'parent'
 }
 
 const submitPerson = async () => {
   if (!personForm.value.name.trim()) return alert('请输入姓名')
   const data = { ...personForm.value }
-  if (data.birthday_type === 'lunar') {
-    if (!lunarMonth.value || !lunarDay.value) return alert('请选择农历月和日')
-    if (!birthYear.value) return alert('请输入出生年份')
-    data.birthday = `${birthYear.value}-${String(lunarMonth.value).padStart(2, '0')}-${String(lunarDay.value).padStart(2, '0')}`
+  if (data.is_alive) {
+    data.death_date = ''
   }
   if (editingPersonId.value) {
     await personApi.update(editingPersonId.value, data)
   } else {
-    await personApi.create({ ...data, family_id: Number(familyId) })
+    if (createRelationEnabled.value && !createRelationPersonId.value) {
+      return alert('请选择要建立关系的成员')
+    }
+    const { data: createdPerson } = await personApi.create({ ...data, family_id: Number(familyId) })
+    if (createRelationEnabled.value) {
+      await relationApi.create({
+        person_id: Number(createdPerson.id),
+        related_id: Number(createRelationPersonId.value),
+        type: createRelationType.value,
+      })
+    }
   }
   closePersonModal()
   loadPersons()
@@ -487,29 +528,6 @@ onMounted(load)
 .checkbox-label input[type="checkbox"] {
   width: auto;
   margin: 0;
-}
-
-.birthday-type-toggle {
-  display: flex;
-  gap: 8px;
-}
-
-.type-btn {
-  flex: 1;
-  padding: 8px 12px;
-  border: 2px solid #dcdfe6;
-  border-radius: 8px;
-  background: white;
-  font-size: 14px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.type-btn.active {
-  border-color: #667eea;
-  background: #f0f2ff;
-  color: #667eea;
-  font-weight: 600;
 }
 
 @media (max-width: 768px) {

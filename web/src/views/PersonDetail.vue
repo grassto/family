@@ -27,8 +27,16 @@
 
         <div class="info-grid">
           <div class="info-item" v-if="person.birthday">
-            <span class="label">🎂 生日</span>
-            <span>{{ person.birthday }} {{ ageText }}</span>
+            <span class="label">🎂 生日（提醒）</span>
+            <span>{{ person.birthday }}（{{ person.birthday_type === 'lunar' ? '农历' : '公历' }}）</span>
+          </div>
+          <div class="info-item" v-if="person.birth_date">
+            <span class="label">🍼 出生日期（公历）</span>
+            <span>{{ person.birth_date }} {{ ageText }}</span>
+          </div>
+          <div class="info-item" v-if="person.death_date">
+            <span class="label">🕯️ 死亡日期（公历）</span>
+            <span>{{ person.death_date }}</span>
           </div>
           <div class="info-item" v-if="person.phone">
             <span class="label">📱 电话</span>
@@ -88,36 +96,37 @@
             <input v-model.number="editForm.generation" type="number" />
           </div>
         </div>
-        <div class="form-group">
-          <label>生日类型</label>
-          <div class="birthday-type-toggle">
-            <button type="button" class="type-btn" :class="{ active: editForm.birthday_type === 'solar' }" @click="editForm.birthday_type = 'solar'">☀️ 公历</button>
-            <button type="button" class="type-btn" :class="{ active: editForm.birthday_type === 'lunar' }" @click="editForm.birthday_type = 'lunar'">🌙 农历</button>
-          </div>
-        </div>
-        <div class="form-group" v-if="editForm.birthday_type === 'solar'">
-          <label>公历生日</label>
-          <input v-model="editForm.birthday" type="date" />
-        </div>
-        <div class="form-row" v-if="editForm.birthday_type === 'lunar'">
+        <div class="form-row">
           <div class="form-group">
-            <label>农历月</label>
-            <select v-model="lunarMonth">
-              <option value="">请选择</option>
-              <option v-for="m in 12" :key="m" :value="m">{{ lunarMonthLabel(m) }}</option>
+            <label>生日类型</label>
+            <select v-model="editForm.birthday_type">
+              <option value="solar">公历</option>
+              <option value="lunar">农历</option>
             </select>
           </div>
           <div class="form-group">
-            <label>农历日</label>
-            <select v-model="lunarDay">
-              <option value="">请选择</option>
-              <option v-for="d in 30" :key="d" :value="d">{{ lunarDayLabel(d) }}</option>
-            </select>
+            <label>生日（提醒用）</label>
+            <input
+              v-if="editForm.birthday_type === 'solar'"
+              v-model="editForm.birthday"
+              type="date"
+            />
+            <input
+              v-else
+              v-model="editForm.birthday"
+              placeholder="如 08-15（农历月-日）"
+            />
           </div>
         </div>
-        <div class="form-group" v-if="editForm.birthday_type === 'lunar'">
-          <label>出生年份（公历）</label>
-          <input v-model="birthYear" type="number" min="1900" max="2100" placeholder="如：1990" />
+        <div class="form-row">
+          <div class="form-group">
+            <label>出生日期（公历）</label>
+            <input v-model="editForm.birth_date" type="date" />
+          </div>
+          <div class="form-group">
+            <label>死亡日期（公历）</label>
+            <input v-model="editForm.death_date" type="date" />
+          </div>
         </div>
         <div class="form-group">
           <label>电话</label>
@@ -215,30 +224,17 @@ const editingRelationId = ref(null)
 const editForm = ref({})
 const relationForm = ref({ related_id: '', type: 'parent' })
 const editRelationForm = ref({ related_id: '', type: 'parent' })
-const lunarMonth = ref('')
-const lunarDay = ref('')
-const birthYear = ref('')
-
-const lunarMonthNames = ['正', '二', '三', '四', '五', '六', '七', '八', '九', '十', '冬', '腊']
-const lunarDayNames = [
-  '初一', '初二', '初三', '初四', '初五', '初六', '初七', '初八', '初九', '初十',
-  '十一', '十二', '十三', '十四', '十五', '十六', '十七', '十八', '十九', '二十',
-  '廿一', '廿二', '廿三', '廿四', '廿五', '廿六', '廿七', '廿八', '廿九', '三十',
-]
-const lunarMonthLabel = (m) => lunarMonthNames[m - 1] + '月'
-const lunarDayLabel = (d) => lunarDayNames[d - 1]
 
 const genderLabel = (g) => ({ male: '男', female: '女', unknown: '未知' }[g] || '未知')
 const genderClass = (g) => ({ male: 'tag-male', female: 'tag-female' }[g] || '')
 
 const ageText = computed(() => {
-  if (!person.value?.birthday) return ''
-  const year = parseInt(person.value.birthday.substring(0, 4))
+  const source = person.value?.birth_date || person.value?.birthday
+  if (!source) return ''
+  const year = parseInt(source.substring(0, 4))
   if (!year) return ''
   const age = new Date().getFullYear() - year
-  let label = `（${age}岁）`
-  if (person.value.birthday_type === 'lunar') label += ' 🌙农历'
-  return label
+  return `（${age}岁）`
 })
 
 const storedRelationTypes = computed(() =>
@@ -258,13 +254,7 @@ const load = async () => {
       relationApi.types(),
     ])
     person.value = pRes.data
-    editForm.value = { ...pRes.data, birthday_type: pRes.data.birthday_type || 'solar' }
-    if (pRes.data.birthday_type === 'lunar' && pRes.data.birthday) {
-      const parts = pRes.data.birthday.split('-')
-      birthYear.value = parts[0]
-      lunarMonth.value = parseInt(parts[1])
-      lunarDay.value = parseInt(parts[2])
-    }
+    editForm.value = { ...pRes.data }
     relations.value = rRes.data
     relationTypes.value = tRes.data
 
@@ -278,13 +268,11 @@ const load = async () => {
 }
 
 const saveEdit = async () => {
-  const data = { ...editForm.value }
-  if (data.birthday_type === 'lunar') {
-    if (!lunarMonth.value || !lunarDay.value) return alert('请选择农历月和日')
-    if (!birthYear.value) return alert('请输入出生年份')
-    data.birthday = `${birthYear.value}-${String(lunarMonth.value).padStart(2, '0')}-${String(lunarDay.value).padStart(2, '0')}`
+  const payload = { ...editForm.value }
+  if (payload.is_alive) {
+    payload.death_date = ''
   }
-  await personApi.update(personId.value, data)
+  await personApi.update(personId.value, payload)
   showEditModal.value = false
   load()
 }
@@ -488,26 +476,4 @@ watch(personId, () => {
   }
 }
 
-.birthday-type-toggle {
-  display: flex;
-  gap: 8px;
-}
-
-.type-btn {
-  flex: 1;
-  padding: 8px 12px;
-  border: 2px solid #dcdfe6;
-  border-radius: 8px;
-  background: white;
-  font-size: 14px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.type-btn.active {
-  border-color: #667eea;
-  background: #f0f2ff;
-  color: #667eea;
-  font-weight: 600;
-}
 </style>
